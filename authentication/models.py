@@ -253,6 +253,7 @@ class Concern(models.Model):
         ("new", "New"),
         ("progress", "In Progress"),
         ("resolved", "Resolved"),
+        ("archived", "Archived"),
     )
 
     student = models.ForeignKey(User, on_delete=models.CASCADE, related_name="concerns")

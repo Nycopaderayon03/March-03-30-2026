@@ -20,50 +20,54 @@
     <div class="records-card">
         <h4>Sanction History</h4>
         <p>A log of every sanction assigned to you.</p>
-        <table class="history-table student-history-table">
-            <thead>
-                <tr>
-                    <th>Violation</th>
-                    <th>Date Issued</th>
-                    <th>Hours Required</th>
-                    <th>Status</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for sanction in sanctions %}
-                <tr>
-                    <td>{{ sanction.violation }}</td>
-                    <td>{{ sanction.issued }}</td>
-                    <td>{{ sanction.hours_required }}</td>
-                    <td><span class="status-pill {{ sanction.status_class }}">{{ sanction.status_label }}</span></td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <div class="history-table-wrapper">
+            <table class="history-table student-history-table">
+                <thead>
+                    <tr>
+                        <th>Violation</th>
+                        <th>Date Issued</th>
+                        <th>Hours Required</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sanction in sanctions %}
+                    <tr>
+                        <td>{{ sanction.violation }}</td>
+                        <td>{{ sanction.issued }}</td>
+                        <td>{{ sanction.hours_required }}</td>
+                        <td><span class="status-pill {{ sanction.status_class }}">{{ sanction.status_label }}</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
     <div class="records-card">
         <h4>Community Service History</h4>
         <p>Only approved hours are shown here.</p>
-        <table class="history-table student-history-table">
-            <thead>
-                <tr>
-                    <th>Date Completed</th>
-                    <th>Hours</th>
-                    <th>Sanction</th>
-                    <th>Description</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for entry in community_hours %}
-                <tr>
-                    <td>{{ entry.date }}</td>
-                    <td>{{ entry.hours }}</td>
-                    <td>{{ entry.sanction_title }}</td>
-                    <td>{{ entry.description }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <div class="history-table-wrapper">
+            <table class="history-table student-history-table">
+                <thead>
+                    <tr>
+                        <th>Date Completed</th>
+                        <th>Hours</th>
+                        <th>Sanction</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in community_hours %}
+                    <tr>
+                        <td>{{ entry.date }}</td>
+                        <td>{{ entry.hours }}</td>
+                        <td>{{ entry.sanction_title }}</td>
+                        <td>{{ entry.description }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 {% endblock %}

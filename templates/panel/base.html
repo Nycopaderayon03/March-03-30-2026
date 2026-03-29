@@ -53,7 +53,7 @@
             </a>
         </div>
 
-        <div class="nav-section" style="margin-top: auto;">
+        <div class="nav-section nav-bottom">
             <a href="{% url 'logout' %}" class="nav-item">
                 <i class="material-icons">logout</i>
                 <span>Logout</span>
@@ -68,6 +68,44 @@
                 <h2>{% block page_title %}Sanction Tracker{% endblock %}</h2>
                 <p>{% block page_subtitle %}Dashboard{% endblock %}</p>
             </div>
+            {% if admin_notifications %}
+            <div class="top-bar-actions">
+                <div class="admin-notifications" id="admin-notifications">
+                    <button class="notification-trigger" id="notification-trigger" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="notification-dropdown">
+                        <i class="material-icons">notifications</i>
+                        {% if admin_notifications.unread_total %}
+                        <span class="notification-count">{{ admin_notifications.unread_total }}</span>
+                        {% endif %}
+                    </button>
+                    <div class="notification-dropdown" id="notification-dropdown" hidden>
+                        <div class="notification-header">
+                            <strong>Notifications</strong>
+                            <span class="notification-summary">{{ admin_notifications.pending_submissions_count }} submissions · {{ admin_notifications.open_concerns_count }} concerns</span>
+                        </div>
+                        {% if admin_notifications.entries %}
+                        <ul class="notification-list">
+                            {% for item in admin_notifications.entries %}
+                            <li>
+                                <a href="{{ item.href }}" class="notification-item">
+                                    <span class="notification-item-icon">
+                                        <i class="material-icons">{{ item.icon }}</i>
+                                    </span>
+                                    <span class="notification-item-content">
+                                        <span class="notification-item-title">{{ item.title }}</span>
+                                        <span class="notification-item-subtitle">{{ item.subtitle }}</span>
+                                        <span class="notification-item-time">{{ item.time_text }}</span>
+                                    </span>
+                                </a>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        {% else %}
+                        <p class="notification-empty">No new notifications.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
         </div>
         {% endblock %}
 
@@ -81,5 +119,44 @@
     </div>
 
     {% block extra_js %}{% endblock %}
+    <script>
+        (function () {
+            const container = document.getElementById('admin-notifications');
+            const trigger = document.getElementById('notification-trigger');
+            const dropdown = document.getElementById('notification-dropdown');
+            if (!container || !trigger || !dropdown) return;
+
+            function closeDropdown() {
+                dropdown.hidden = true;
+                trigger.setAttribute('aria-expanded', 'false');
+            }
+
+            function openDropdown() {
+                dropdown.hidden = false;
+                trigger.setAttribute('aria-expanded', 'true');
+            }
+
+            trigger.addEventListener('click', function (event) {
+                event.stopPropagation();
+                if (dropdown.hidden) {
+                    openDropdown();
+                } else {
+                    closeDropdown();
+                }
+            });
+
+            document.addEventListener('click', function (event) {
+                if (!container.contains(event.target)) {
+                    closeDropdown();
+                }
+            });
+
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape') {
+                    closeDropdown();
+                }
+            });
+        })();
+    </script>
 </body>
 </html>

@@ -58,9 +58,20 @@
                                         data-status-label="{{ concern.status_label }}"
                                         data-status-class="{{ concern.status_class }}"
                                         data-status-target="concern-status-{{ concern.id }}"
+                                        data-archive-target="concern-archive-{{ concern.id }}"
                                     >
                                         <i class="material-icons">visibility</i>
                                         View
+                                    </button>
+                                    <button
+                                        type="button"
+                                        id="concern-archive-{{ concern.id }}"
+                                        class="archive-concern-btn"
+                                        data-concern-id="{{ concern.id }}"
+                                        {% if concern.status_class != 'resolved' %}hidden{% endif %}
+                                    >
+                                        <i class="material-icons">archive</i>
+                                        Archive
                                     </button>
                                 </td>
                             </tr>
@@ -120,6 +131,7 @@
             const btnClose = document.getElementById('modal-close-btn');
             const btnModalClose = document.getElementById('concern-modal-close');
             const viewButtons = document.querySelectorAll('.view-concern-btn');
+            const archiveButtons = document.querySelectorAll('.archive-concern-btn');
             let activeViewButton = null;
             let activeStatusElement = null;
 
@@ -138,28 +150,7 @@
                 return cookieValue;
             }
 
-            function updateConcernStatus(statusClass, statusLabel) {
-                var normalizedLabel = statusLabel || 'Unknown';
-                var normalizedClass = statusClass || 'new';
-                if (modalStatus) {
-                    modalStatus.textContent = normalizedLabel;
-                    modalStatus.className = 'status-pill status-' + normalizedClass;
-                }
-                if (activeStatusElement) {
-                    activeStatusElement.textContent = normalizedLabel;
-                    activeStatusElement.className = 'status-pill status-' + normalizedClass;
-                }
-                if (activeViewButton) {
-                    activeViewButton.dataset.statusClass = normalizedClass;
-                    activeViewButton.dataset.statusLabel = normalizedLabel;
-                }
-            }
-
-            function persistConcernStatus(statusKey) {
-                if (!activeViewButton) {
-                    return Promise.reject(new Error('Open a concern before updating its status.'));
-                }
-                const concernId = activeViewButton.dataset.concernId;
+            function persistConcernStatusForConcern(concernId, statusKey) {
                 if (!concernId) {
                     return Promise.reject(new Error('Concern identifier is missing.'));
                 }
@@ -177,12 +168,44 @@
                         if (!response.ok) {
                             throw new Error(data.error || 'Unable to update concern status.');
                         }
-                        const label = data.status_label || statusKey;
-                        const cssClass = data.status_class || statusKey;
-                        updateConcernStatus(cssClass, label);
                         return data;
                     })
                 );
+            }
+
+            function updateConcernStatus(statusClass, statusLabel) {
+                var normalizedLabel = statusLabel || 'Unknown';
+                var normalizedClass = statusClass || 'new';
+                if (modalStatus) {
+                    modalStatus.textContent = normalizedLabel;
+                    modalStatus.className = 'status-pill status-' + normalizedClass;
+                }
+                if (activeStatusElement) {
+                    activeStatusElement.textContent = normalizedLabel;
+                    activeStatusElement.className = 'status-pill status-' + normalizedClass;
+                }
+                if (activeViewButton) {
+                    activeViewButton.dataset.statusClass = normalizedClass;
+                    activeViewButton.dataset.statusLabel = normalizedLabel;
+                    const archiveTargetId = activeViewButton.dataset.archiveTarget;
+                    const archiveButton = archiveTargetId ? document.getElementById(archiveTargetId) : null;
+                    if (archiveButton) {
+                        archiveButton.hidden = normalizedClass !== 'resolved';
+                    }
+                }
+            }
+
+            function persistConcernStatus(statusKey) {
+                if (!activeViewButton) {
+                    return Promise.reject(new Error('Open a concern before updating its status.'));
+                }
+                const concernId = activeViewButton.dataset.concernId;
+                return persistConcernStatusForConcern(concernId, statusKey).then(data => {
+                    const label = data.status_label || statusKey;
+                    const cssClass = data.status_class || statusKey;
+                    updateConcernStatus(cssClass, label);
+                    return data;
+                });
             }
 
             function openModal(button) {
@@ -237,6 +260,21 @@
                 btnResolved.addEventListener('click', function () {
                     persistConcernStatus('resolved').catch(error => alert(error.message));
                 });
+            }
+            for (var j = 0; j < archiveButtons.length; j++) {
+                (function (button) {
+                    button.addEventListener('click', function () {
+                        const concernId = button.dataset.concernId;
+                        persistConcernStatusForConcern(concernId, 'archived')
+                            .then(() => {
+                                const row = button.closest('tr');
+                                if (row) {
+                                    row.remove();
+                                }
+                            })
+                            .catch(error => alert(error.message));
+                    });
+                })(archiveButtons[j]);
             }
             if (btnClose) {
                 btnClose.addEventListener('click', closeModal);

@@ -79,9 +79,15 @@
                     <div class="report-card students-card">
                         <div class="report-title">
                             <i class="material-icons">star</i>
-                            Top Students by Service Hours
+                            Reports by Service Hours (Yearly by Semester)
                         </div>
-                        <p class="report-description">Students who have completed the most service hours.</p>
+                        <p class="report-description">View top students by selected yearly semester period.</p>
+                        <div class="chart-controls">
+                            <label for="semester-filter">Semester</label>
+                            <select id="semester-filter">
+                                <option value="all">Loading...</option>
+                            </select>
+                        </div>
                         <ul class="top-students-list">
                             <li class="student-item">
                                 <div class="student-info">
@@ -94,6 +100,7 @@
                                 <span class="student-hours">0 hrs</span>
                             </li>
                         </ul>
+                        <p id="students-period-meta" class="report-description">Loading ranking period...</p>
                         <div class="card-footer">
                             <button class="btn btn-outline" type="button" onclick="viewAllStudents()">
                                 <i class="material-icons">list</i>
@@ -189,6 +196,8 @@
         const chartFilterCount = document.getElementById('chart-filter-count');
         const chartFilterPeriod = document.getElementById('chart-filter-period');
         const topStudentsList = document.querySelector('.top-students-list');
+        const semesterFilter = document.getElementById('semester-filter');
+        const studentsPeriodMeta = document.getElementById('students-period-meta');
         const noteEl = document.getElementById('reports-note');
         const modal = document.getElementById('report-modal');
         const emailBody = document.getElementById('report-email-body');
@@ -200,6 +209,16 @@
         let sanctionsChart = null;
         let currentChartConfig = reportsData.all || null;
         let activeMonthSelection = 'all';
+
+        function escapeHtml(value) {
+            return (value ?? '')
+                .toString()
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
 
         function getCssColor(variable, fallback) {
             return getComputedStyle(document.documentElement).getPropertyValue(variable).trim() || fallback;
@@ -334,16 +353,60 @@
             }
             currentChartConfig = config;
             applyMonthFilter();
+            renderTopStudents(config, true);
+            updateNoteText(key);
+        }
 
-            if (!config.topStudents.length) {
-                topStudentsList.innerHTML = '<li class="student-item"><div class="student-info"><span class="student-name">No students have recorded hours yet this period.</span></div></li>';
+        function getSelectedSemesterBucket(config, useDefault = false) {
+            const buckets = config?.topStudentsBySemester || [];
+            if (!buckets.length) {
+                return null;
+            }
+            const selected = semesterFilter?.value;
+            const matched = buckets.find(bucket => bucket.key === selected);
+            if (matched) {
+                return matched;
+            }
+            return useDefault ? buckets[0] : null;
+        }
+
+        function renderTopStudents(config, resetSemesterSelection = false) {
+            if (!config || !topStudentsList) {
+                return;
+            }
+
+            const semesterBuckets = config.topStudentsBySemester || [];
+            if (semesterFilter) {
+                if (semesterBuckets.length) {
+                    const existingValue = semesterFilter.value;
+                    semesterFilter.innerHTML = semesterBuckets
+                        .map(bucket => `<option value="${bucket.key}">${escapeHtml(bucket.label)}</option>`)
+                        .join('');
+                    if (!resetSemesterSelection && semesterBuckets.some(bucket => bucket.key === existingValue)) {
+                        semesterFilter.value = existingValue;
+                    } else {
+                        semesterFilter.value = semesterBuckets[0].key;
+                    }
+                    semesterFilter.disabled = false;
+                } else {
+                    semesterFilter.innerHTML = '<option value="all">No semester data</option>';
+                    semesterFilter.value = 'all';
+                    semesterFilter.disabled = true;
+                }
+            }
+
+            const selectedBucket = getSelectedSemesterBucket(config, true);
+            const selectedStudents = selectedBucket?.students || [];
+
+            if (!selectedStudents.length) {
+                topStudentsList.innerHTML = '<li class="student-item"><div class="student-info"><span class="student-name">No students have recorded hours for this semester yet.</span></div></li>';
             } else {
-                const maxHours = Math.max(...config.topStudents.map(s => Number(s.hours) || 0), 1);
-                topStudentsList.innerHTML = config.topStudents.map((student, index) => `
+                const maxHours = Math.max(...selectedStudents.map(s => Number(s.hours) || 0), 1);
+                topStudentsList.innerHTML = selectedStudents.map((student, index) => `
                     <li class="student-item">
                         <div class="student-info">
                             <span class="student-rank">${index + 1}</span>
-                            <span class="student-name">${student.name}</span>
+                            <span class="student-name">${escapeHtml(student.name)}</span>
                         </div>
                         <div class="student-progress">
                             <div class="student-progress-fill" style="width:${Math.round(((Number(student.hours) || 0) / maxHours) * 100)}%"></div>
@@ -353,7 +416,11 @@
                 `).join('');
             }
 
-            updateNoteText(key);
+            if (studentsPeriodMeta) {
+                studentsPeriodMeta.textContent = selectedBucket
+                    ? `Ranking period: ${selectedBucket.label}`
+                    : 'Ranking period: All approved records';
+            }
         }
 
         function updateNoteText(key) {
@@ -375,11 +442,14 @@
             }
             const config = reportsData[key];
             const totalSanctions = config.months.reduce((sum, value) => sum + value, 0);
-            const topStudent = config.topStudents[0];
-            const topStudentLine = topStudent ? `${topStudent.name} (${topStudent.hours} hours)` : 'No students have completed hours yet this period.';
+            const selectedBucket = getSelectedSemesterBucket(config, true);
+            const topCandidates = selectedBucket?.students || [];
+            const topStudent = topCandidates[0];
+            const selectedPeriodLabel = selectedBucket?.label || 'all approved records';
+            const topStudentLine = topStudent ? `${topStudent.name} (${topStudent.hours} hours)` : 'No students have completed hours yet for the selected semester.';
             const body = `Dear Dean of ${config.label},
 
-During this reporting period, ${totalSanctions} new sanctions were issued for ${config.label}. ${topStudent ? `The top student by service hours is ${topStudentLine}.` : 'No students have completed service hours this period.'}
+During this reporting period, ${totalSanctions} new sanctions were issued for ${config.label}. Top student summary is based on ${selectedPeriodLabel}. ${topStudent ? `The top student by service hours is ${topStudentLine}.` : 'No students have completed service hours this semester.'}
 
 Please let me know if you would like a deeper breakdown.
 
@@ -431,7 +501,30 @@ Sanction Tracker Office`;
         }
 
         function viewAllStudents() {
-            alert('Navigating to the full student ranking...');
+            const config = getCurrentReportConfig();
+            const selectedBucket = getSelectedSemesterBucket(config, true);
+            const rankingRows = selectedBucket?.allStudents?.length
+                ? selectedBucket.allStudents
+                : (selectedBucket?.students || []);
+            const periodLabel = selectedBucket?.label || 'No semester selected';
+            const rankingHtml = rankingRows.length
+                ? `
+                    <ol>
+                        ${rankingRows
+                            .map(
+                                student => `<li>${escapeHtml(student.name)} - ${escapeHtml(student.hours)} hrs</li>`
+                            )
+                            .join('')}
+                    </ol>
+                `
+                : '<p class="muted">No students have recorded approved service hours for this period.</p>';
+
+            const content = `
+                <h1>Full Student Ranking - ${escapeHtml(config.label)}</h1>
+                <p class="muted">Period: ${escapeHtml(periodLabel)}</p>
+                ${rankingHtml}
+            `;
+            openPrintableWindow(`Full Ranking - ${config.label}`, content, false);
         }
 
         function viewConcern(studentName) {
@@ -462,7 +555,7 @@ Sanction Tracker Office`;
                 .muted { color: rgba(17, 24, 39, 0.6); margin-top: 0; }
                 ul { padding-left: 20px; margin: 0; }
             `;
-            printWindow.document.write(`<!DOCTYPE html><html><head><title>${title}</title><style>${style}</style></head><body>${contentHtml}</body></html>`);
+            printWindow.document.write(`<!DOCTYPE html><html><head><title>${escapeHtml(title)}</title><style>${style}</style></head><body>${contentHtml}</body></html>`);
             printWindow.document.close();
             printWindow.focus();
             if (autoPrint) {
@@ -500,14 +593,14 @@ Sanction Tracker Office`;
 
         function buildTopStudentsSection(topStudents) {
             if (!topStudents?.length) {
-                return `<p class="muted">No students have completed service hours during this period.</p>`;
+                return `<p class="muted">No students have completed service hours for the selected semester.</p>`;
             }
             return `
-                <h2>Top Students by Service Hours</h2>
+                <h2>Reports by Service Hours (Yearly by Semester)</h2>
                 <ul>
                     ${topStudents
                         .map(
-                            student => `<li>${sanitizeText(student.name)} — ${sanitizeText(student.hours)} hrs</li>`
+                            student => `<li>${escapeHtml(student.name)} - ${escapeHtml(student.hours)} hrs</li>`
                         )
                         .join('')}
                 </ul>
@@ -516,24 +609,30 @@ Sanction Tracker Office`;
 
         function printSanctionReport() {
             const config = getCurrentReportConfig();
+            const selectedBucket = getSelectedSemesterBucket(config, true);
+            const selectedStudents = selectedBucket?.students || [];
             const content = `
-                <h1>Student Sanction Records — ${config.label}</h1>
+                <h1>Student Sanction Records - ${escapeHtml(config.label)}</h1>
                 <p class="muted">Sanction summary generated from the live dashboard data.</p>
+                <p class="muted">Top students period: ${escapeHtml(selectedBucket?.label || 'All approved records')}</p>
                 ${buildSummaryTable(config.summary || {})}
-                ${buildTopStudentsSection(config.topStudents || [])}
+                ${buildTopStudentsSection(selectedStudents)}
             `;
-            openPrintableWindow(`Sanction Report — ${config.label}`, content);
+            openPrintableWindow(`Sanction Report - ${config.label}`, content);
         }
 
         function downloadPDF() {
             const config = getCurrentReportConfig();
+            const selectedBucket = getSelectedSemesterBucket(config, true);
+            const selectedStudents = selectedBucket?.students || [];
             const content = `
-                <h1>Student Sanction Records — ${config.label}</h1>
+                <h1>Student Sanction Records - ${escapeHtml(config.label)}</h1>
                 <p class="muted">After the print dialog opens, select “Save as PDF” to download this report.</p>
+                <p class="muted">Top students period: ${escapeHtml(selectedBucket?.label || 'All approved records')}</p>
                 ${buildSummaryTable(config.summary || {})}
-                ${buildTopStudentsSection(config.topStudents || [])}
+                ${buildTopStudentsSection(selectedStudents)}
             `;
-            const printWindow = openPrintableWindow(`Sanction Report PDF — ${config.label}`, content);
+            const printWindow = openPrintableWindow(`Sanction Report PDF - ${config.label}`, content);
             if (printWindow) {
                 printWindow.onload = () => {
                     printWindow.print();
@@ -544,19 +643,21 @@ Sanction Tracker Office`;
         function printSummary() {
             const config = getCurrentReportConfig();
             const content = `
-                <h1>Community Service Hour Summary — ${config.label}</h1>
+                <h1>Community Service Hour Summary - ${escapeHtml(config.label)}</h1>
                 <p class="muted">Overview of approved, required, and remaining service hours.</p>
                 ${buildSummaryTable(config.summary || {})}
             `;
-            openPrintableWindow(`Service Summary — ${config.label}`, content);
+            openPrintableWindow(`Service Summary - ${config.label}`, content);
         }
 
         function downloadCSV() {
             const config = getCurrentReportConfig();
             const summary = config.summary || {};
-            const topStudents = config.topStudents || [];
+            const selectedBucket = getSelectedSemesterBucket(config, true);
+            const topStudents = selectedBucket?.students || [];
             const metaRows = [
                 ['Department', config.label],
+                ['Top Students Period', selectedBucket?.label || 'No semester selected'],
                 ['Required Hours', sanitizeText(summary.required)],
                 ['Completed Hours', sanitizeText(summary.completed)],
                 ['Remaining Hours', sanitizeText(summary.remaining)],
@@ -588,6 +689,11 @@ Sanction Tracker Office`;
             monthFilter.addEventListener('change', (event) => {
                 activeMonthSelection = event.target.value;
                 applyMonthFilter();
+            });
+        }
+        if (semesterFilter) {
+            semesterFilter.addEventListener('change', () => {
+                renderTopStudents(currentChartConfig, false);
             });
         }
 

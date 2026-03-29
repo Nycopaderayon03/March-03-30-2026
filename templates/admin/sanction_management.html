@@ -63,36 +63,14 @@
                                     <label class="form-label" for="existing-department">Department</label>
                                     <select id="existing-department" name="department" required>
                                         <option value="">Select a department...</option>
+                                        {% for dept in department_choices %}
                                         <option
-                                            value="College of Arts and Sciences"
-                                            {% if selected_student and selected_student.department == "College of Arts and Sciences" %}selected{% endif %}
+                                            value="{{ dept }}"
+                                            {% if selected_student and selected_student.department == dept %}selected{% endif %}
                                         >
-                                            College of Arts and Sciences
+                                            {{ dept }}
                                         </option>
-                                        <option
-                                            value="College of Business and Accountancy"
-                                            {% if selected_student and selected_student.department == "College of Business and Accountancy" %}selected{% endif %}
-                                        >
-                                            College of Business and Accountancy
-                                        </option>
-                                        <option
-                                            value="College of Engineering and Information Technology"
-                                            {% if selected_student and selected_student.department == "College of Engineering and Information Technology" %}selected{% endif %}
-                                        >
-                                            College of Engineering and Information Technology
-                                        </option>
-                                        <option
-                                            value="College of Education"
-                                            {% if selected_student and selected_student.department == "College of Education" %}selected{% endif %}
-                                        >
-                                            College of Education
-                                        </option>
-                                        <option
-                                            value="College of Law"
-                                            {% if selected_student and selected_student.department == "College of Law" %}selected{% endif %}
-                                        >
-                                            College of Law
-                                        </option>
+                                        {% endfor %}
                                     </select>
                                 </div>
                             </div>
@@ -164,11 +142,9 @@
                                     <label class="form-label" for="new-student-department">Department</label>
                                     <select id="new-student-department" name="new_student_department" required>
                                         <option value="">Select a department...</option>
-                                        <option value="College of Arts and Sciences">College of Arts and Sciences</option>
-                                        <option value="College of Business and Accountancy">College of Business and Accountancy</option>
-                                        <option value="College of Engineering and Information Technology">College of Engineering and Information Technology</option>
-                                        <option value="College of Education">College of Education</option>
-                                        <option value="College of Law">College of Law</option>
+                                        {% for dept in department_choices %}
+                                        <option value="{{ dept }}">{{ dept }}</option>
+                                        {% endfor %}
                                     </select>
                                 </div>
                             </div>
@@ -316,6 +292,31 @@
                 <p class="card-description">A list of all sanctions currently in the system.</p>
             </div>
             <div class="card-content">
+                <form method="GET" action="{% url 'sanction_management' %}" class="history-search-form">
+                    {% if selected_student %}
+                    <input type="hidden" name="student_id" value="{{ selected_student.id }}">
+                    {% endif %}
+                    <input
+                        id="history-search-input"
+                        type="search"
+                        class="history-search-input"
+                        name="history_search"
+                        value="{{ history_search }}"
+                        placeholder="Search by violation or ID number..."
+                        aria-label="Search sanction history by violation or ID number"
+                        autocomplete="off"
+                    >
+                    <input
+                        id="history-course-input"
+                        type="search"
+                        class="history-search-input"
+                        name="history_course"
+                        value="{{ history_course }}"
+                        placeholder="Search by course..."
+                        aria-label="Search sanction history by course"
+                        autocomplete="off"
+                    >
+                </form>
                 <div class="history-table-wrapper">
                     <table class="history-table">
                         <thead>
@@ -335,6 +336,8 @@
                                 <td>
                                     <strong>{{ sanction.student_name }}</strong><br>
                                     <small style="color: var(--gray);">{{ sanction.student_id }}</small>
+                                    <br>
+                                    <small style="color: var(--gray);">Course: {{ sanction.student_course|default:"N/A" }}</small>
                                 </td>
                                 <td>{{ sanction.violation }}</td>
                                 <td>{{ sanction.date_issued }}</td>
@@ -518,11 +521,52 @@
             });
         }
 
+        function initHistorySearchAutoSubmit() {
+            const form = document.querySelector('.history-search-form');
+            const inputs = Array.from(document.querySelectorAll('.history-search-input'));
+            if (!form || !inputs.length) return;
+
+            const SCROLL_KEY = 'sanctions-history-scroll-y';
+            const RESTORE_KEY = 'sanctions-history-restore';
+
+            const persistScrollState = () => {
+                sessionStorage.setItem(SCROLL_KEY, String(window.scrollY || 0));
+                sessionStorage.setItem(RESTORE_KEY, '1');
+            };
+
+            form.addEventListener('submit', persistScrollState);
+
+            let timer = null;
+            inputs.forEach((input) => {
+                input.addEventListener('input', function() {
+                    clearTimeout(timer);
+                    timer = setTimeout(() => {
+                        persistScrollState();
+                        form.submit();
+                    }, 350);
+                });
+            });
+
+            if (sessionStorage.getItem(RESTORE_KEY) === '1') {
+                const storedY = Number(sessionStorage.getItem(SCROLL_KEY) || 0);
+                sessionStorage.removeItem(RESTORE_KEY);
+                sessionStorage.removeItem(SCROLL_KEY);
+                window.requestAnimationFrame(() => {
+                    window.scrollTo(0, Number.isFinite(storedY) ? storedY : 0);
+                    const activeInput = inputs.find((field) => (field.value || '').trim()) || inputs[0];
+                    activeInput.focus();
+                    const end = activeInput.value.length;
+                    activeInput.setSelectionRange(end, end);
+                });
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             initStudentSearch();
             initExistingStudentAutoDepartment();
             initLogoutHandler();
             initEditModal();
+            initHistorySearchAutoSubmit();
         });
 </script>
 {% endblock %}

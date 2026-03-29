@@ -51,7 +51,7 @@
                             <i class="material-icons">search</i>
                             <input type="text"
                                    name="search"
-                                   placeholder="Search by name or ID..."
+                                   placeholder="Search by ID number..."
                                    value="{{ search_query }}">
                         </div>
                     </form>
@@ -62,7 +62,8 @@
                     <table class="students-table">
                         <thead>
                             <tr>
-                                <th>Student ID</th>
+                                <th>POD Case No.</th>
+                                <th>ID No.</th>
                                 <th>Name</th>
                                 <th>Email</th>
                                 <th>Status</th>
@@ -72,15 +73,12 @@
                         <tbody>
                             {% for student in students %}
                             <tr>
+                                <td><strong>{{ student.pod_case_no }}</strong></td>
                                 <td><strong>{{ student.id }}</strong></td>
                                 <td>{{ student.get_full_name|default:student.username }}</td>
                                 <td>{{ student.email }}</td>
                                 <td>
-                                    {% if student.is_active %}
-                                    <span class="status-badge status-cleared">Active</span>
-                                    {% else %}
-                                    <span class="status-badge status-with-sanction">Inactive</span>
-                                    {% endif %}
+                                    <span class="status-badge {{ student.directory_status_class }}">{{ student.directory_status_label }}</span>
                                 </td>
                                 <td>
                                     <div class="action-buttons">
@@ -102,7 +100,7 @@
                 {% else %}
                 <div class="empty-state">
                     <i class="material-icons">search_off</i>
-                    <p>No students found. Try a different search term.</p>
+                    <p>No students found. Try a valid ID number.</p>
                 </div>
                 {% endif %}
 

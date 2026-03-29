@@ -18,6 +18,17 @@ from authentication.models import Concern, Sanction, SanctionType, ServiceHourSu
 
 logger = logging.getLogger(__name__)
 
+DEPARTMENT_CHOICES = [
+    "College Of Agriculture",
+    "College Of Arts and Sciences Education",
+    "College Of Allied Health Sciences Education",
+    "College Of Business Education",
+    "College Of Criminal Justice Education",
+    "College Of Engineering Education",
+    "College Of Information Technology Education",
+    "College Of Teacher Education",
+]
+
 
 def has_admin_access(user):
     return user.is_authenticated and (
@@ -116,6 +127,61 @@ def format_activity_time(when):
     return f"{delta_days} days ago"
 
 
+def sync_sanction_progress(sanction, approved_total=None):
+    if not sanction:
+        return False
+
+    if approved_total is None:
+        approved_total = (
+            ServiceHourSubmission.objects.filter(
+                sanction=sanction,
+                student=sanction.student,
+                status="approved",
+            ).aggregate(total=Sum("hours"))["total"]
+            or Decimal("0")
+        )
+
+    normalized_completed = int(Decimal(str(approved_total)))
+    expected_status = sanction.status
+    if sanction.required_hours and normalized_completed >= sanction.required_hours:
+        expected_status = "completed"
+    elif sanction.status == "completed" and normalized_completed < sanction.required_hours:
+        expected_status = "active"
+
+    changed = (
+        sanction.completed_hours != normalized_completed
+        or sanction.status != expected_status
+    )
+    if changed:
+        sanction.completed_hours = normalized_completed
+        sanction.status = expected_status
+        sanction.save(update_fields=["completed_hours", "status", "updated_at"])
+    return changed
+
+
+def sync_sanctions_for_queryset(queryset):
+    sanctions = list(
+        queryset.annotate(
+            approved_hours_total=Sum(
+                "service_submissions__hours",
+                filter=Q(service_submissions__status="approved"),
+            )
+        )
+    )
+    for sanction in sanctions:
+        sync_sanction_progress(sanction, approved_total=sanction.approved_hours_total or Decimal("0"))
+    return sanctions
+
+
+def format_pod_case_no(student, sequence_no):
+    joined_at = getattr(student, "date_joined", None)
+    if joined_at:
+        joined_date = timezone.localtime(joined_at).date() if timezone.is_aware(joined_at) else joined_at.date()
+    else:
+        joined_date = timezone.localdate()
+    return f"{joined_date.year}/{joined_date.strftime('%d')}/{int(sequence_no):04d}"
+
+
 def attempt_student_password_change(request, current_password, new_password, confirm_password):
     """Validate and persist a password change initiated by a student."""
     user = request.user
@@ -151,6 +217,7 @@ def department_key(label):
 
 
 def get_admin_dashboard_context():
+    sync_sanctions_for_queryset(Sanction.objects.all())
     total_students = User.objects.filter(role="student").count()
     new_students_this_week = User.objects.filter(
         role="student", created_at__gte=timezone.now() - timezone.timedelta(days=7)
@@ -176,6 +243,7 @@ def serialize_sanction_for_admin(sanction):
         "id": sanction.id,
         "student_name": sanction.student_name,
         "student_id": sanction.student_id,
+        "student_course": sanction.student.course_year or "",
         "violation": sanction.violation,
         "required_hours": sanction.required_hours,
         "completed_hours": sanction.completed_hours,
@@ -305,10 +373,22 @@ def sanction_management_view(request):
         return redirect("dashboard")
 
     sanction_types = list(SanctionType.objects.all())
-    sanctions = [
-        serialize_sanction_for_admin(sanction)
-        for sanction in Sanction.objects.select_related("student", "sanction_type").all()
-    ]
+    history_search = (request.GET.get("history_search") or "").strip()
+    history_course = (request.GET.get("history_course") or "").strip()
+    sanctions_qs = Sanction.objects.select_related("student", "sanction_type").all()
+    if history_search:
+        sanction_filters = (
+            Q(violation_snapshot__icontains=history_search)
+            | Q(sanction_type__description__icontains=history_search)
+            | Q(student__student_code__icontains=history_search)
+        )
+        if history_search.isdigit():
+            parsed_id = int(history_search)
+            sanction_filters |= Q(id=parsed_id) | Q(student__id=parsed_id)
+        sanctions_qs = sanctions_qs.filter(sanction_filters)
+    if history_course:
+        sanctions_qs = sanctions_qs.filter(student__course_year__icontains=history_course)
+    sanctions = [serialize_sanction_for_admin(sanction) for sanction in sync_sanctions_for_queryset(sanctions_qs)]
     students = [
         {
             "id": student.id,
@@ -334,6 +414,9 @@ def sanction_management_view(request):
         "current_date": timezone.localdate().isoformat(),
         "sanction_types": sanction_types,
         "selected_student": selected_student,
+        "history_search": history_search,
+        "history_course": history_course,
+        "department_choices": DEPARTMENT_CHOICES,
     }
     return render(request, "admin/sanction_management.html", context)
 
@@ -602,7 +685,7 @@ def login_view(request):
                 messages.success(request, "Welcome, admin!")
                 return redirect("admin_dashboard")
             if getattr(user, "is_student", False):
-                messages.success(request, f"Welcome back, {user.display_name}!")
+                request.session["student_welcome_once"] = True
                 return redirect("student_dashboard")
             messages.error(request, "Your account is not authorized to use this system.")
             logout(request)
@@ -635,31 +718,45 @@ def student_management_view(request):
         messages.error(request, "You do not have permission to access this page.")
         return redirect("dashboard")
 
-    students = User.objects.filter(role="student")
+    students = User.objects.filter(role="student").order_by("id")
 
     search_query = request.GET.get("search", "").strip()
     if search_query:
-        student_filters = (
-            Q(username__icontains=search_query)
-            | Q(email__icontains=search_query)
-            | Q(first_name__icontains=search_query)
-            | Q(last_name__icontains=search_query)
-            | Q(student_code__icontains=search_query)
-            | Q(department__icontains=search_query)
-            | Q(course_year__icontains=search_query)
-        )
         if search_query.isdigit():
-            student_filters |= Q(id=int(search_query))
-        students = students.filter(student_filters).distinct()
+            students = students.filter(id=int(search_query)).order_by("id")
+        else:
+            students = students.none()
+
+    # Keep sanction statuses aligned with approved service-hour validations so
+    # dashboard counters and row badges are always accurate.
+    sanctions_for_students = sync_sanctions_for_queryset(Sanction.objects.filter(student__in=students))
+    active_sanctions_by_student = {}
+    for sanction in sanctions_for_students:
+        approved_total = Decimal(str(getattr(sanction, "approved_hours_total", 0) or 0))
+        required_total = Decimal(str(sanction.required_hours or 0))
+        is_open = required_total > 0 and approved_total < required_total
+        if is_open:
+            active_sanctions_by_student[sanction.student_id] = (
+                active_sanctions_by_student.get(sanction.student_id, 0) + 1
+            )
 
     total_students = students.count()
     active_students = students.filter(is_active=True).count()
-    students_with_sanctions = (
-        Sanction.objects.filter(student__in=students)
-        .values("student")
-        .distinct()
-        .count()
-    )
+    students_with_sanctions = len(active_sanctions_by_student)
+    students = list(students)
+    for index, student in enumerate(students, start=1):
+        student.pod_case_no = format_pod_case_no(student, index)
+        student.active_sanction_count = active_sanctions_by_student.get(student.id, 0)
+        if not student.is_active:
+            student.directory_status_label = "Inactive"
+            student.directory_status_class = "status-with-sanction"
+        elif getattr(student, "active_sanction_count", 0) > 0:
+            student.directory_status_label = "With Sanction"
+            student.directory_status_class = "status-with-sanction"
+        else:
+            student.directory_status_label = "Cleared"
+            student.directory_status_class = "status-cleared"
+
     context = {
         "students": students,
         "search_query": search_query,
@@ -683,6 +780,7 @@ def student_detail_view(request, student_id):
     except User.DoesNotExist:
         messages.error(request, "Student not found.")
         return redirect("student_management")
+    sync_sanctions_for_queryset(Sanction.objects.filter(student=student))
     sanctions_qs = (
         Sanction.objects.filter(student=student)
         .select_related("sanction_type")
@@ -869,6 +967,11 @@ def update_service_submission_status(request, submission_id):
     submission.reviewed_by = request.user
     submission.reviewed_at = timezone.now()
     submission.save()
+
+    # Keep the linked sanction progress/status in sync with validated submissions.
+    if submission.sanction_id:
+        sync_sanction_progress(submission.sanction)
+
     return JsonResponse({"success": True, "status": submission.get_status_display()})
 
 
@@ -880,7 +983,7 @@ def update_concern_status(request, concern_id):
         return JsonResponse({"error": "Invalid method"}, status=405)
 
     status = (request.POST.get("status") or "").strip().lower()
-    valid_statuses = {"new", "progress", "resolved"}
+    valid_statuses = {"new", "progress", "resolved", "archived"}
     if status not in valid_statuses:
         return JsonResponse({"error": "Invalid status"}, status=400)
 
@@ -888,6 +991,9 @@ def update_concern_status(request, concern_id):
         concern = Concern.objects.get(id=concern_id)
     except Concern.DoesNotExist:
         return JsonResponse({"error": "Concern not found"}, status=404)
+
+    if status == "archived" and concern.status != "resolved":
+        return JsonResponse({"error": "Only resolved concerns can be archived."}, status=400)
 
     concern.status = status
     concern.save()
@@ -917,7 +1023,7 @@ def concerns_management_view(request):
             "status_class": concern.status_class,
             "message": concern.message,
         }
-        for concern in Concern.objects.select_related("student").all()
+        for concern in Concern.objects.select_related("student").exclude(status="archived")
     ]
 
     context = {
@@ -932,6 +1038,7 @@ def student_dashboard_view(request):
         messages.error(request, "Please log in with a student account to view the student portal.")
         return redirect("admin_dashboard" if has_admin_access(request.user) else "login")
 
+    sync_sanctions_for_queryset(Sanction.objects.filter(student=request.user))
     sanctions_qs = Sanction.objects.filter(student=request.user)
     submissions_qs = ServiceHourSubmission.objects.filter(student=request.user)
 
@@ -1035,11 +1142,13 @@ def student_dashboard_view(request):
             }
         )
 
+    show_welcome_banner = bool(request.session.pop("student_welcome_once", False))
     context = {
         "student_name": request.user.display_name,
         "overview_cards": overview_cards,
         "monthly_hours": monthly_hours,
         "activity_feed": activity_feed,
+        "show_welcome_banner": show_welcome_banner,
         "active_section": "dashboard",
     }
     return render(request, "Student/dashboard.html", context)
@@ -1051,6 +1160,7 @@ def student_sanctions_view(request):
         messages.error(request, "Please log in with a student account to view the student portal.")
         return redirect("admin_dashboard" if has_admin_access(request.user) else "login")
 
+    sync_sanctions_for_queryset(Sanction.objects.filter(student=request.user))
     sanctions = []
     today = timezone.localdate()
     for sanction in Sanction.objects.filter(student=request.user):
@@ -1166,6 +1276,7 @@ def student_service_hours_view(request):
             messages.error(request, str(exc))
         return redirect("student_service_hours")
 
+    sync_sanctions_for_queryset(Sanction.objects.filter(student=request.user))
     sanctions_qs = Sanction.objects.filter(student=request.user)
     submissions_qs = ServiceHourSubmission.objects.filter(student=request.user)
 
@@ -1343,7 +1454,11 @@ def reports_management_view(request):
         User.objects.filter(role="student").exclude(department="").values_list("department", flat=True)
     )
     sanction_departments = set(Sanction.objects.exclude(department="").values_list("department", flat=True))
-    department_labels = sorted(student_departments | sanction_departments)
+    discovered_departments = student_departments | sanction_departments
+    department_labels = list(DEPARTMENT_CHOICES)
+    for label in sorted(discovered_departments):
+        if label not in department_labels:
+            department_labels.append(label)
 
     include_unassigned = (
         User.objects.filter(role="student").filter(Q(department="") | Q(department__isnull=True)).exists()
@@ -1408,6 +1523,56 @@ def reports_management_view(request):
             if student.total_hours
         ]
 
+        top_students_by_semester = []
+        semester_keys = []
+        semester_totals = {}
+        for submission in approved_qs.values(
+            "student__id",
+            "student__first_name",
+            "student__last_name",
+            "student__username",
+            "date",
+            "hours",
+        ):
+            submission_date = submission.get("date")
+            if not submission_date:
+                continue
+            year = submission_date.year
+            sem = 1 if submission_date.month <= 6 else 2
+            bucket_key = (year, sem)
+            if bucket_key not in semester_totals:
+                semester_totals[bucket_key] = {}
+                semester_keys.append(bucket_key)
+            student_id = submission["student__id"]
+            display_name = (
+                f"{(submission.get('student__first_name') or '').strip()} {(submission.get('student__last_name') or '').strip()}".strip()
+                or submission.get("student__username")
+                or "Unknown Student"
+            )
+            student_entry = semester_totals[bucket_key].setdefault(
+                student_id,
+                {"name": display_name, "hours": Decimal("0")},
+            )
+            student_entry["hours"] += Decimal(str(submission.get("hours") or 0))
+
+        for year, sem in sorted(semester_keys, reverse=True):
+            ranking = sorted(
+                semester_totals[(year, sem)].values(),
+                key=lambda item: (-item["hours"], item["name"].lower()),
+            )
+            formatted_ranking = [
+                {"name": row["name"], "hours": format_hours(row["hours"])}
+                for row in ranking
+            ]
+            top_students_by_semester.append(
+                {
+                    "key": f"{year}-sem{sem}",
+                    "label": f"{year} - Sem {sem}",
+                    "students": formatted_ranking[:5],
+                    "allStudents": formatted_ranking,
+                }
+            )
+
         required_total = sanctions_qs.aggregate(total=Sum("required_hours"))["total"] or 0
         completed_total = approved_qs.aggregate(total=Sum("hours"))["total"] or Decimal("0")
         remaining_total = max(Decimal(required_total) - completed_total, Decimal("0"))
@@ -1424,6 +1589,7 @@ def reports_management_view(request):
             "label": label_text,
             "months": monthly_values,
             "topStudents": top_students,
+            "topStudentsBySemester": top_students_by_semester,
             "summary": {
                 "required": required_total,
                 "completed": format_hours(completed_total),

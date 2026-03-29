@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Student Portal - Sanction Tracker{% endblock %}</title>
     <link rel="stylesheet" href="{% static 'css/admin-theme.css' %}">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     {% block extra_css %}{% endblock %}
 </head>
 <body>
@@ -20,7 +21,7 @@
 
         <div class="nav-section">
             <h3>Main</h3>
-            <a href="{% url 'student_dashboard' %}" class="nav-item active">
+            <a href="{% url 'student_dashboard' %}" class="nav-item {% if active_section == 'dashboard' %}active{% endif %}">
                 <i class="material-icons">dashboard</i>
                 <span>Dashboard</span>
             </a>
@@ -50,7 +51,7 @@
             </a>
         </div>
 
-        <div class="nav-section" style="margin-top: auto;">
+        <div class="nav-section nav-bottom">
             <a href="{% url 'logout' %}" class="nav-item">
                 <i class="material-icons">logout</i>
                 <span>Logout</span>
@@ -64,7 +65,44 @@
                 <h2>{% block page_title %}Student Portal{% endblock %}</h2>
                 <p>{% block page_subtitle %}Track your sanctions and service hours.{% endblock %}</p>
             </div>
-           
+            {% if student_notifications %}
+            <div class="top-bar-actions">
+                <div class="admin-notifications" id="student-notifications">
+                    <button class="notification-trigger" id="student-notification-trigger" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="student-notification-dropdown">
+                        <i class="material-icons">notifications</i>
+                        {% if student_notifications.unread_total %}
+                        <span class="notification-count">{{ student_notifications.unread_total }}</span>
+                        {% endif %}
+                    </button>
+                    <div class="notification-dropdown" id="student-notification-dropdown" hidden>
+                        <div class="notification-header">
+                            <strong>Notifications</strong>
+                            <span class="notification-summary">{{ student_notifications.active_sanctions_count }} sanctions · {{ student_notifications.pending_submissions_count }} pending · {{ student_notifications.concern_updates_count }} concern updates</span>
+                        </div>
+                        {% if student_notifications.entries %}
+                        <ul class="notification-list">
+                            {% for item in student_notifications.entries %}
+                            <li>
+                                <a href="{{ item.href }}" class="notification-item">
+                                    <span class="notification-item-icon">
+                                        <i class="material-icons">{{ item.icon }}</i>
+                                    </span>
+                                    <span class="notification-item-content">
+                                        <span class="notification-item-title">{{ item.title }}</span>
+                                        <span class="notification-item-subtitle">{{ item.subtitle }}</span>
+                                        <span class="notification-item-time">{{ item.time_text }}</span>
+                                    </span>
+                                </a>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        {% else %}
+                        <p class="notification-empty">No new notifications.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
         </div>
 
         {% if messages %}
@@ -106,6 +144,44 @@
                 }
             });
         });
+
+        (function () {
+            const container = document.getElementById('student-notifications');
+            const trigger = document.getElementById('student-notification-trigger');
+            const dropdown = document.getElementById('student-notification-dropdown');
+            if (!container || !trigger || !dropdown) return;
+
+            function closeDropdown() {
+                dropdown.hidden = true;
+                trigger.setAttribute('aria-expanded', 'false');
+            }
+
+            function openDropdown() {
+                dropdown.hidden = false;
+                trigger.setAttribute('aria-expanded', 'true');
+            }
+
+            trigger.addEventListener('click', function (event) {
+                event.stopPropagation();
+                if (dropdown.hidden) {
+                    openDropdown();
+                } else {
+                    closeDropdown();
+                }
+            });
+
+            document.addEventListener('click', function (event) {
+                if (!container.contains(event.target)) {
+                    closeDropdown();
+                }
+            });
+
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape') {
+                    closeDropdown();
+                }
+            });
+        })();
     </script>
     {% block extra_js %}{% endblock %}
 </body>
