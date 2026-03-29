@@ -1,0 +1,528 @@
+{% extends 'panel/base.html' %}
+
+{% block title %}Sanction Management - Sanction Tracker{% endblock %}
+{% block nav_sanctions_active %}active{% endblock %}
+{% block page_subtitle %}Sanction Management{% endblock %}
+
+{% block content %}
+        <!-- Messages -->
+        {% if messages %}
+        <div class="messages">
+            {% for message in messages %}
+                {% if "logged out" not in message|lower and "welcome" not in message|lower %}
+                <div class="alert alert-{{ message.tags }}">
+                    {{ message }}
+                </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Tabs -->
+        <div class="sanction-panel">
+            <div class="tabs">
+                <button class="tab-btn active" data-target="assign-existing" onclick="showTab('assign-existing', this)">Assign to Existing</button>
+                <button class="tab-btn" data-target="assign-new" onclick="showTab('assign-new', this)">Assign to New</button>
+                <button class="tab-btn" data-target="manage" onclick="showTab('manage', this)">Manage Sanctions</button>
+            </div>
+
+            <div class="tab-panels">
+            <section id="assign-existing" class="tab-panel active">
+                <div class="card">
+                    <div class="card-header">
+                        <p class="card-title">Assign Sanction to Existing Student</p>
+                        <p class="card-description">Select a student and assign a new sanction.</p>
+                    </div>
+                    <div class="card-content">
+                        <form method="POST" action="{% url 'add_sanction' %}">
+                            {% csrf_token %}
+                            <div class="form-grid-two">
+                                <div class="student-field-stack">
+                                    <label class="form-label" for="existing-student">Student</label>
+                                    <input
+                                        type="search"
+                                        id="existing-student-search"
+                                        class="student-search-input"
+                                        placeholder="Search students by name or ID"
+                                        aria-label="Search existing students"
+                                    >
+                                    <select id="existing-student" name="student_id" required>
+                                        <option value="">Select a student...</option>
+                                        {% for student in students %}
+                                        <option
+                                            value="{{ student.id }}"
+                                            data-department="{{ student.department|default:''|escape }}"
+                                            {% if selected_student and selected_student.id == student.id %}selected{% endif %}
+                                        >
+                                            {{ student.name }} ({{ student.code }})
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="form-label" for="existing-department">Department</label>
+                                    <select id="existing-department" name="department" required>
+                                        <option value="">Select a department...</option>
+                                        <option
+                                            value="College of Arts and Sciences"
+                                            {% if selected_student and selected_student.department == "College of Arts and Sciences" %}selected{% endif %}
+                                        >
+                                            College of Arts and Sciences
+                                        </option>
+                                        <option
+                                            value="College of Business and Accountancy"
+                                            {% if selected_student and selected_student.department == "College of Business and Accountancy" %}selected{% endif %}
+                                        >
+                                            College of Business and Accountancy
+                                        </option>
+                                        <option
+                                            value="College of Engineering and Information Technology"
+                                            {% if selected_student and selected_student.department == "College of Engineering and Information Technology" %}selected{% endif %}
+                                        >
+                                            College of Engineering and Information Technology
+                                        </option>
+                                        <option
+                                            value="College of Education"
+                                            {% if selected_student and selected_student.department == "College of Education" %}selected{% endif %}
+                                        >
+                                            College of Education
+                                        </option>
+                                        <option
+                                            value="College of Law"
+                                            {% if selected_student and selected_student.department == "College of Law" %}selected{% endif %}
+                                        >
+                                            College of Law
+                                        </option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-grid-two">
+                                <div>
+                                    <label class="form-label" for="existing-violation">Violation</label>
+                                    <select id="existing-violation" name="violation" class="violation-field" required>
+                                        <option value="">Select a violation...</option>
+                                        {% for sanction_type in sanction_types %}
+                                        <option value="{{ sanction_type.description }}" data-hours="{{ sanction_type.hours }}">{{ sanction_type.description }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="existing-note">Description</label>
+                                <textarea id="existing-note" name="note" rows="3" placeholder="Describe this sanction for the student..."></textarea>
+                            </div>
+                            <div class="form-grid-three">
+                                <div>
+                                    <label class="form-label" for="existing-date-issued">Date Issued</label>
+                                    <input type="date" id="existing-date-issued" name="date_issued" value="{{ current_date }}" required>
+                                </div>
+                                <div>
+                                    <label class="form-label" for="existing-due-date">Due Date</label>
+                                    <input type="date" id="existing-due-date" name="due_date" required>
+                                </div>
+                                <div>
+                                    <label class="form-label" for="existing-hours">Required Hours</label>
+                                    <input type="number" id="existing-hours" name="required_hours" min="1" placeholder="Enter required hours">
+                                </div>
+                            </div>
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="material-icons">add</i>
+                                    Add Sanction
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </section>
+
+            <section id="assign-new" class="tab-panel">
+                <div class="card">
+                    <div class="card-header">
+                        <p class="card-title">Create New Student &amp; Assign Sanction</p>
+                        <p class="card-description">Enter the new student's details, generate their welcome email, and assign their first sanction.</p>
+                    </div>
+                    <div class="card-content">
+                        <form method="POST" action="{% url 'add_new_student_with_sanction' %}">
+                            {% csrf_token %}
+                            <div class="form-grid-two">
+                                <div>
+                                    <label class="form-label" for="new-student-id">Student ID</label>
+                                    <input type="text" id="new-student-id" name="new_student_id" placeholder="e.g. S005" required>
+                                </div>
+                                <div>
+                                    <label class="form-label" for="new-student-name">Full Name</label>
+                                    <input type="text" id="new-student-name" name="full_name" placeholder="e.g. Alex Ray" required>
+                                </div>
+                            </div>
+                            <div class="form-grid-two">
+                                <div>
+                                    <label class="form-label" for="new-student-email">School Email</label>
+                                    <input type="email" id="new-student-email" name="new_student_email" placeholder="e.g. alex.ray@school.edu" required>
+                                </div>
+                                <div>
+                                    <label class="form-label" for="new-student-department">Department</label>
+                                    <select id="new-student-department" name="new_student_department" required>
+                                        <option value="">Select a department...</option>
+                                        <option value="College of Arts and Sciences">College of Arts and Sciences</option>
+                                        <option value="College of Business and Accountancy">College of Business and Accountancy</option>
+                                        <option value="College of Engineering and Information Technology">College of Engineering and Information Technology</option>
+                                        <option value="College of Education">College of Education</option>
+                                        <option value="College of Law">College of Law</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="form-label" for="course_year">Course / Year</label>
+                                <input type="text" id="course_year" name="course_year" placeholder="e.g. BSSC-1" required>
+                            </div>
+                            <div class="form-grid-two">
+                                <div>
+                                    <label class="form-label" for="new-violation">Violation</label>
+                                    <select id="new-violation" name="new_violation" class="violation-field" required>
+                                        <option value="">Select a violation...</option>
+                                        {% for sanction_type in sanction_types %}
+                                        <option value="{{ sanction_type.description }}" data-hours="{{ sanction_type.hours }}">{{ sanction_type.description }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="form-label" for="new-hours">Required Hours</label>
+                                    <input type="number" id="new-hours" name="new_required_hours" min="1" placeholder="Enter required hours">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="new-note">Description</label>
+                                <textarea id="new-note" name="new_note" rows="3" placeholder="Describe this sanction for the student..."></textarea>
+                            </div>
+                            <div class="form-grid-two">
+                                <div>
+                                    <label class="form-label" for="new-date-issued">Date Issued</label>
+                                    <input type="date" id="new-date-issued" name="new_date_issued" value="{{ current_date }}" required>
+                                </div>
+                                <div>
+                                    <label class="form-label" for="new-due-date">Due Date</label>
+                                    <input type="date" id="new-due-date" name="new_due_date" required>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="material-icons">person_add</i>
+                                Create Student, Generate Email &amp; Add Sanction
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </section>
+
+            <section id="manage" class="tab-panel">
+                <div class="manage-grid">
+                    <div class="card">
+                        <div class="card-header">
+                            <p class="card-title">Add New Sanction Type</p>
+                            <p class="card-description">Define a new violation that can be assigned to students.</p>
+                        </div>
+                        <div class="card-content">
+                            <form method="POST" action="{% url 'add_sanction_type' %}">
+                                {% csrf_token %}
+                                <div>
+                                    <label class="form-label" for="sanction_description">Violation Description</label>
+                                    <input type="text" id="sanction_description" name="description" placeholder="e.g. Public Disturbance" required>
+                                </div>
+                                <div class="form-grid-two">
+                                    <div>
+                                        <label class="form-label" for="sanction_hours">Required Hours</label>
+                                        <input type="number" id="sanction_hours" name="required_hours" min="1" placeholder="e.g. 8" required>
+                                    </div>
+                                    <div>
+                                        <label class="form-label" for="sanction_gravity">Gravity</label>
+                                        <select id="sanction_gravity" name="gravity">
+                                            <option value="Minor">Minor</option>
+                                            <option value="Major">Major</option>
+                                            <option value="Grave">Grave</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Add Sanction Type</button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <p class="card-title">Defined Sanction Types</p>
+                            <p class="card-description">The list of all available sanctions.</p>
+                        </div>
+                        <div class="card-content">
+                            <div class="sanction-types-table-container">
+                                <table class="sanction-types-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Description</th>
+                                            <th>Hours</th>
+                                            <th>Gravity</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for sanction_type in sanction_types %}
+                                        <tr>
+                                            <td>{{ sanction_type.description }}</td>
+                                            <td>{{ sanction_type.hours }}</td>
+                                            <td>
+                                                <span class="gravity-badge gravity-{{ sanction_type.gravity_class }}">{{ sanction_type.gravity }}</span>
+                                            </td>
+                                            <td>
+                                                <div class="action-buttons">
+                                                    <button
+                                                        type="button"
+                                                        class="icon-button edit-type-btn"
+                                                        data-edit-url="{% url 'edit_sanction_type' sanction_type.id %}"
+                                                        data-description="{{ sanction_type.description|escape }}"
+                                                        data-hours="{{ sanction_type.hours }}"
+                                                        data-gravity="{{ sanction_type.gravity }}"
+                                                        aria-label="Edit {{ sanction_type.description }}"
+                                                    >
+                                                        <i class="material-icons">edit</i>
+                                                    </button>
+                                                    <form method="POST" action="{% url 'delete_sanction_type' sanction_type.id %}">
+                                                        {% csrf_token %}
+                                                        <button type="submit" class="icon-button" aria-label="Delete {{ sanction_type.description }}">
+                                                            <i class="material-icons">delete</i>
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% empty %}
+                                        <tr>
+                                            <td colspan="4" style="text-align: center; padding: 32px; color: var(--gray);">
+                                                No sanction types defined yet.
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            </div>
+        </div>
+
+        <section class="history-card card">
+            <div class="card-header">
+                <p class="card-title">Sanction Assignment History</p>
+                <p class="card-description">A list of all sanctions currently in the system.</p>
+            </div>
+            <div class="card-content">
+                <div class="history-table-wrapper">
+                    <table class="history-table">
+                        <thead>
+                            <tr>
+                                <th>Student Name</th>
+                                <th>Violation</th>
+                                <th>Date Issued</th>
+                                <th>Due Date</th>
+                                <th>Required Hours</th>
+                                <th>Completed Hours</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for sanction in sanctions %}
+                            <tr>
+                                <td>
+                                    <strong>{{ sanction.student_name }}</strong><br>
+                                    <small style="color: var(--gray);">{{ sanction.student_id }}</small>
+                                </td>
+                                <td>{{ sanction.violation }}</td>
+                                <td>{{ sanction.date_issued }}</td>
+                                <td>{{ sanction.due_date }}</td>
+                                <td>{{ sanction.required_hours }}</td>
+                                <td>{{ sanction.completed_hours }}</td>
+                                <td>
+                                    <span class="status-pill {{ sanction.status_class }}">{{ sanction.status }}</span>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7" style="text-align: center; padding: 40px; color: var(--gray);">
+                                    No sanctions found. Add your first sanction above.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    <div class="modal-overlay" id="edit-sanction-modal">
+        <div class="modal-card card">
+            <button type="button" class="close-modal" aria-label="Close edit modal">&times;</button>
+            <div class="card-header">
+                <p class="card-title">Edit Sanction Type</p>
+                <p class="card-description">Update the violation description, required hours, or gravity.</p>
+            </div>
+            <div class="card-content">
+                <form method="POST" action="" id="edit-sanction-form">
+                    {% csrf_token %}
+                    <div>
+                        <label class="form-label" for="modal-description">Violation Description</label>
+                        <input type="text" id="modal-description" name="description" required>
+                    </div>
+                    <div class="form-grid-two">
+                        <div>
+                            <label class="form-label" for="modal-hours">Required Hours</label>
+                            <input type="number" id="modal-hours" name="required_hours" min="1" required>
+                        </div>
+                        <div>
+                            <label class="form-label" for="modal-gravity">Gravity</label>
+                            <select id="modal-gravity" name="gravity">
+                                <option value="Minor">Minor</option>
+                                <option value="Major">Major</option>
+                                <option value="Grave">Grave</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-controls">
+                        <button type="button" class="btn btn-secondary" id="cancel-edit">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+        function showTab(tabId, button) {
+            document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            const panel = document.getElementById(tabId);
+            if (panel) panel.classList.add('active');
+            if (button) button.classList.add('active');
+        }
+
+        function initStudentSearch() {
+            const searchInput = document.getElementById('existing-student-search');
+            const studentSelect = document.getElementById('existing-student');
+            if (!searchInput || !studentSelect) return;
+
+            const filterOptions = () => {
+                const query = searchInput.value.trim().toLowerCase();
+                Array.from(studentSelect.options).forEach(option => {
+                    if (!option.value) {
+                        option.hidden = false;
+                        option.disabled = false;
+                        return;
+                    }
+                    const text = option.textContent.toLowerCase();
+                    const matches = !query || text.includes(query);
+                    option.hidden = !matches;
+                    option.disabled = !matches;
+                });
+
+                if (studentSelect.selectedOptions.length && studentSelect.selectedOptions[0].hidden) {
+                    studentSelect.value = '';
+                }
+                autoFillDepartmentFromStudentSelection();
+            };
+
+            searchInput.addEventListener('input', filterOptions);
+            filterOptions();
+        }
+
+        function autoFillDepartmentFromStudentSelection() {
+            const studentSelect = document.getElementById('existing-student');
+            const departmentSelect = document.getElementById('existing-department');
+            if (!studentSelect || !departmentSelect) return;
+
+            const option = studentSelect.selectedOptions[0];
+            if (!option || !option.value) {
+                departmentSelect.value = '';
+                return;
+            }
+
+            const department = option.dataset.department || '';
+            const hasMatchingOption = department
+                ? Array.from(departmentSelect.options).some(opt => opt.value === department)
+                : false;
+            if (hasMatchingOption) {
+                departmentSelect.value = department;
+            } else {
+                departmentSelect.value = '';
+            }
+        }
+
+        function initExistingStudentAutoDepartment() {
+            const studentSelect = document.getElementById('existing-student');
+            if (!studentSelect) return;
+            studentSelect.addEventListener('change', autoFillDepartmentFromStudentSelection);
+            autoFillDepartmentFromStudentSelection();
+        }
+
+        function initLogoutHandler() {
+            const logoutBtn = document.querySelector('form[action*="logout"] button');
+            if (!logoutBtn) return;
+
+            logoutBtn.addEventListener('click', function(e) {
+                if (!confirm('Are you sure you want to logout?')) {
+                    e.preventDefault();
+                }
+            });
+        }
+
+        function openEditModal(button) {
+            const modal = document.getElementById('edit-sanction-modal');
+            if (!modal) return;
+            const form = document.getElementById('edit-sanction-form');
+            const descriptionInput = document.getElementById('modal-description');
+            const hoursInput = document.getElementById('modal-hours');
+            const gravitySelect = document.getElementById('modal-gravity');
+
+            form.action = button.dataset.editUrl || '';
+            descriptionInput.value = button.dataset.description || '';
+            hoursInput.value = button.dataset.hours || '';
+            gravitySelect.value = button.dataset.gravity || 'Minor';
+
+            modal.classList.add('is-open');
+        }
+
+        function initEditModal() {
+            const modal = document.getElementById('edit-sanction-modal');
+            if (!modal) return;
+            const closeButtons = modal.querySelectorAll('.close-modal, #cancel-edit');
+            const overlay = modal;
+
+            const closeModal = () => overlay.classList.remove('is-open');
+
+            document.querySelectorAll('.edit-type-btn').forEach(btn => {
+                btn.addEventListener('click', () => openEditModal(btn));
+            });
+
+            closeButtons.forEach(btn => btn.addEventListener('click', closeModal));
+
+            overlay.addEventListener('click', function(event) {
+                if (event.target === overlay) {
+                    closeModal();
+                }
+            });
+
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape') {
+                    closeModal();
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            initStudentSearch();
+            initExistingStudentAutoDepartment();
+            initLogoutHandler();
+            initEditModal();
+        });
+</script>
+{% endblock %}

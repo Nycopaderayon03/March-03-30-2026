@@ -1,0 +1,110 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: sanctiontracker-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-sanction_tracker_db}
+      POSTGRES_USER: ${DB_USER:-sanction_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-1234}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-sanction_user} -d ${DB_NAME:-sanction_tracker_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: sanctiontracker-web
+    restart: unless-stopped
+    command: gunicorn sanctiontracker.wsgi:application --bind 0.0.0.0:8000
+    expose:
+      - "8000"
+    ports:
+      - "8000:8000"
+    environment:
+      PYTHONPATH: /app
+      DB_ENGINE: ${DB_ENGINE:-postgresql}
+      DB_NAME: ${DB_NAME:-sanction_tracker_db}
+      DB_USER: ${DB_USER:-sanction_user}
+      DB_PASSWORD: ${DB_PASSWORD:-1234}
+      DB_HOST: db
+      DB_PORT: 5432
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-}
+      DJANGO_ADMIN_PATH: ${DJANGO_ADMIN_PATH:-secure-admin-portal}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ..:/app
+      - media_data:/app/media
+      - static_data:/app/staticfiles
+
+  nginx:
+    image: nginx:alpine
+    container_name: sanctiontracker-nginx
+    restart: unless-stopped
+    depends_on:
+      - web
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:-jmcedu.duckdns.org}
+    volumes:
+      - ../nginx/templates:/etc/nginx/templates:ro
+      - ../nginx/init-nginx.sh:/docker-entrypoint.d/99-init-nginx.sh:ro
+      - certbot_www:/var/www/certbot
+      - letsencrypt_certs:/etc/letsencrypt
+
+  certbot:
+    image: certbot/certbot:latest
+    container_name: sanctiontracker-certbot
+    restart: unless-stopped
+    volumes:
+      - certbot_www:/var/www/certbot
+      - letsencrypt_certs:/etc/letsencrypt
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h; done
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: sanctiontracker-cloudflared
+    restart: unless-stopped
+    profiles: ["tunnel"]
+    depends_on:
+      - nginx
+    command: tunnel --no-autoupdate --url http://nginx:80
+
+  pgadmin:
+    image: dpage/pgadmin4:8
+    container_name: sanctiontracker-pgadmin
+    restart: unless-stopped
+    profiles: ["pgadmin"]
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin123}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "5050:80"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
+volumes:
+  postgres_data:
+  media_data:
+  static_data:
+  certbot_www:
+  letsencrypt_certs:
+  pgadmin_data:

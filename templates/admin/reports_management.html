@@ -1,0 +1,628 @@
+{% extends 'panel/base.html' %}
+
+{% block title %}Reports & Analytics - Sanction Tracker{% endblock %}
+{% block sidebar_subtitle %}Management System{% endblock %}
+{% block nav_reports_active %}active{% endblock %}
+{% block page_subtitle %}Reports & Analytics{% endblock %}
+
+{% block content %}
+        {% if messages %}
+        <div class="messages">
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Reports Content -->
+        <div class="reports-content">
+            <div class="reports-page">
+                <div class="reports-hero">
+                    <div>
+                        <p class="eyebrow">Reports</p>
+                        <h1>Reports &amp; Analytics</h1>
+                        <p>Monitor sanction volume, highlight service hours, and generate dean-ready summaries from a single dashboard.</p>
+                    </div>
+                    <div class="reports-filter">
+                        <label for="reports-department">Filter by department</label>
+                        <select id="reports-department">
+                            {% for option in department_options %}
+                            <option value="{{ option.key }}">{{ option.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="cards-grid">
+                    <div class="report-card chart-card">
+                        <div class="report-title">
+                            <i class="material-icons">bar_chart</i>
+                            Sanctions by Month
+                        </div>
+                        <p class="report-description">A monthly overview of newly assigned sanctions.</p>
+                        <div class="chart-header">
+                            <div class="chart-header-text">
+                                <p class="chart-header-title">Monthly sanctions snapshot</p>
+                                <p class="chart-header-subtitle">Focus on a month or keep the full window in view.</p>
+                            </div>
+                            <div class="chart-controls">
+                                <label for="month-filter">Scope</label>
+                                <select id="month-filter">
+                                    <option value="all">All months</option>
+                                    {% for label in report_month_labels %}
+                                    <option value="{{ forloop.counter0 }}">{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="chart-wrapper sanctions-chart-wrapper">
+                            <canvas id="sanctions-chart" height="220"></canvas>
+                        </div>
+                        <div class="chart-meta">
+                            <span id="chart-filter-count" class="chart-meta-count">Tracking sanctions across {{ report_month_labels|length }} months.</span>
+                            <span id="chart-filter-period" class="chart-meta-tag">All months selected</span>
+                        </div>
+                        <div class="card-footer">
+                            <button class="btn btn-secondary" type="button" onclick="printChart()">
+                                <i class="material-icons">print</i>
+                                Print
+                            </button>
+                            <button class="btn btn-primary" type="button" onclick="exportChart()">
+                                <i class="material-icons">download</i>
+                                Export
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="report-card students-card">
+                        <div class="report-title">
+                            <i class="material-icons">star</i>
+                            Top Students by Service Hours
+                        </div>
+                        <p class="report-description">Students who have completed the most service hours.</p>
+                        <ul class="top-students-list">
+                            <li class="student-item">
+                                <div class="student-info">
+                                    <span class="student-rank">-</span>
+                                    <span class="student-name">Loading...</span>
+                                </div>
+                                <div class="student-progress">
+                                    <div class="student-progress-fill" style="width: 0;"></div>
+                                </div>
+                                <span class="student-hours">0 hrs</span>
+                            </li>
+                        </ul>
+                        <div class="card-footer">
+                            <button class="btn btn-outline" type="button" onclick="viewAllStudents()">
+                                <i class="material-icons">list</i>
+                                View All
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="action-grid">
+                <div class="report-card action-card student-report-card">
+                    <div class="report-title">
+                        <i class="material-icons">gavel</i>
+                        Student Sanction Records
+                    </div>
+                    <p class="report-description">Generate a detailed report of all sanctions for a specific student or the entire roster.</p>
+                    <div class="student-report-actions">
+                        <button class="btn btn-accent" type="button" onclick="printSanctionReport()">
+                            <i class="material-icons">print</i>
+                            Print Report
+                        </button>
+                        <button class="btn btn-light" type="button" onclick="downloadPDF()">
+                            <i class="material-icons">download</i>
+                            Download as PDF
+                        </button>
+                    </div>
+                </div>
+
+                <div class="report-card action-card summary-report-card">
+                    <div class="report-title">
+                        <i class="material-icons">schedule</i>
+                        Community Service Hour Summary
+                    </div>
+                    <p class="report-description">Get a summary of completed and remaining community service hours for all students.</p>
+                    <div class="student-report-actions">
+                        <button class="btn btn-accent" type="button" onclick="printSummary()">
+                            <i class="material-icons">print</i>
+                            Print Summary
+                        </button>
+                        <button class="btn btn-light" type="button" onclick="downloadCSV()">
+                            <i class="material-icons">download</i>
+                            Download as CSV
+                        </button>
+                    </div>
+                </div>
+                </div>
+
+                <div class="report-card email-card">
+                    <div class="report-title">
+                        <i class="material-icons">mail</i>
+                        Email Department Report
+                    </div>
+                    <p class="report-description">Generate a summary email for the selected dean.</p>
+                    <div class="email-actions">
+                        <button class="btn btn-primary" id="generate-report-email" type="button">Generate Email for Dean</button>
+                    </div>
+                    <p class="note" id="reports-note">Please select a specific department to generate the email.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-overlay" id="report-modal">
+            <div class="modal">
+                <div class="modal-header">
+                    <div class="report-title">
+                        <i class="material-icons">description</i>
+                        Department Report Email
+                    </div>
+                </div>
+                <div class="modal-row">
+                    <span>Dean's Email</span>
+                    <span id="report-dean-email">n/a</span>
+                </div>
+                <textarea id="report-email-body" rows="10" readonly></textarea>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" type="button" id="close-report-modal">Close</button>
+                    <button class="btn btn-primary" type="button" id="copy-email-btn">Copy Email</button>
+                </div>
+            </div>
+        </div>
+{% endblock %}
+
+{% block extra_js %}
+    {{ reports_data|json_script:"reports-data-json" }}
+    {{ report_month_labels|json_script:"report-month-labels-json" }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.3.0/dist/chart.umd.min.js"></script>
+<script>
+        const reportsData = JSON.parse(document.getElementById('reports-data-json').textContent || '{}');
+        const months = JSON.parse(document.getElementById('report-month-labels-json').textContent || '[]');
+        const departmentSelect = document.getElementById('reports-department');
+        const monthFilter = document.getElementById('month-filter');
+        const chartCanvas = document.getElementById('sanctions-chart');
+        const chartFilterCount = document.getElementById('chart-filter-count');
+        const chartFilterPeriod = document.getElementById('chart-filter-period');
+        const topStudentsList = document.querySelector('.top-students-list');
+        const noteEl = document.getElementById('reports-note');
+        const modal = document.getElementById('report-modal');
+        const emailBody = document.getElementById('report-email-body');
+        const emailAddress = document.getElementById('report-dean-email');
+        const generateButton = document.getElementById('generate-report-email');
+        const copyButton = document.getElementById('copy-email-btn');
+        const closeModalBtn = document.getElementById('close-report-modal');
+
+        let sanctionsChart = null;
+        let currentChartConfig = reportsData.all || null;
+        let activeMonthSelection = 'all';
+
+        function getCssColor(variable, fallback) {
+            return getComputedStyle(document.documentElement).getPropertyValue(variable).trim() || fallback;
+        }
+
+        const chartTheme = {
+            base: getCssColor('--primary', '#4c1d99'),
+            highlight: getCssColor('--secondary', '#f4b400'),
+            muted: 'rgba(76, 29, 153, 0.25)',
+        };
+
+        function initSanctionsChart() {
+            if (!chartCanvas || typeof Chart === 'undefined') {
+                return;
+            }
+            const ctx = chartCanvas.getContext('2d');
+            sanctionsChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: months,
+                    datasets: [
+                        {
+                            label: 'Sanctions',
+                            data: Array(months.length).fill(0),
+                            backgroundColor: Array(months.length).fill(chartTheme.base),
+                            borderRadius: 20,
+                            borderSkipped: false,
+                            maxBarThickness: 36,
+                        },
+                    ],
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0,
+                                stepSize: 1,
+                                color: 'rgba(59, 47, 87, 0.8)',
+                            },
+                            grid: {
+                                color: 'rgba(76, 29, 153, 0.15)',
+                            },
+                        },
+                        x: {
+                            grid: {
+                                display: false,
+                            },
+                            ticks: {
+                                color: 'rgba(59, 47, 87, 0.85)',
+                            },
+                        },
+                    },
+                    plugins: {
+                        legend: {
+                            display: false,
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label(context) {
+                                    const value = context.parsed.y ?? context.parsed ?? 0;
+                                    return `Sanctions: ${value}`;
+                                },
+                            },
+                        },
+                    },
+                },
+            });
+        }
+
+        function updateChartDisplay(values, selectedIndex) {
+            if (!sanctionsChart) {
+                initSanctionsChart();
+            }
+            if (!sanctionsChart) {
+                return;
+            }
+            sanctionsChart.data.labels = months;
+            sanctionsChart.data.datasets[0].data = values;
+            sanctionsChart.data.datasets[0].backgroundColor = values.map((_, index) => {
+                if (typeof selectedIndex === 'number') {
+                    return index === selectedIndex ? chartTheme.highlight : chartTheme.muted;
+                }
+                return chartTheme.base;
+            });
+            sanctionsChart.update();
+        }
+
+        function updateChartSummary(selectedIndex, values) {
+            if (!chartFilterCount || !chartFilterPeriod) {
+                return;
+            }
+            const total = values.reduce((sum, value) => sum + (+value || 0), 0);
+            if (typeof selectedIndex === 'number') {
+                const label = months[selectedIndex] || 'Selected month';
+                const value = values[selectedIndex] || 0;
+                chartFilterCount.textContent = `${label}: ${value} sanction${value === 1 ? '' : 's'}.`;
+                chartFilterPeriod.textContent = 'Filtered down to one month.';
+            } else {
+                chartFilterCount.textContent = `Total ${total} sanctions across ${values.length} months.`;
+                chartFilterPeriod.textContent = 'Showing the full range.';
+            }
+        }
+
+        function applyMonthFilter() {
+            if (!currentChartConfig) {
+                return;
+            }
+            const normalizedValues = months.map((_, index) => Number(currentChartConfig.months[index]) || 0);
+            let selectedIndex = null;
+            if (activeMonthSelection !== 'all') {
+                const parsed = Number(activeMonthSelection);
+                if (Number.isInteger(parsed) && parsed >= 0 && parsed < months.length) {
+                    selectedIndex = parsed;
+                } else {
+                    activeMonthSelection = 'all';
+                    if (monthFilter) {
+                        monthFilter.value = 'all';
+                    }
+                }
+            }
+            updateChartDisplay(normalizedValues, selectedIndex);
+            updateChartSummary(selectedIndex, normalizedValues);
+        }
+
+        function renderDepartmentMetrics() {
+            const key = departmentSelect.value;
+            const config = reportsData[key] || reportsData.all;
+            if (!config) {
+                return;
+            }
+            currentChartConfig = config;
+            applyMonthFilter();
+
+            if (!config.topStudents.length) {
+                topStudentsList.innerHTML = '<li class="student-item"><div class="student-info"><span class="student-name">No students have recorded hours yet this period.</span></div></li>';
+            } else {
+                const maxHours = Math.max(...config.topStudents.map(s => Number(s.hours) || 0), 1);
+                topStudentsList.innerHTML = config.topStudents.map((student, index) => `
+                    <li class="student-item">
+                        <div class="student-info">
+                            <span class="student-rank">${index + 1}</span>
+                            <span class="student-name">${student.name}</span>
+                        </div>
+                        <div class="student-progress">
+                            <div class="student-progress-fill" style="width:${Math.round(((Number(student.hours) || 0) / maxHours) * 100)}%"></div>
+                        </div>
+                        <span class="student-hours">${student.hours} hrs</span>
+                    </li>
+                `).join('');
+            }
+
+            updateNoteText(key);
+        }
+
+        function updateNoteText(key) {
+            if (key === 'all') {
+                noteEl.textContent = 'Please select a specific department to generate the email.';
+                noteEl.classList.add('error');
+            } else {
+                noteEl.textContent = `Live metrics loaded for ${reportsData[key].label}.`;
+                noteEl.classList.remove('error');
+            }
+        }
+
+        function openReportModal() {
+            const key = departmentSelect.value;
+            if (key === 'all') {
+                noteEl.textContent = 'Please choose a department before generating the email.';
+                noteEl.classList.add('error');
+                return;
+            }
+            const config = reportsData[key];
+            const totalSanctions = config.months.reduce((sum, value) => sum + value, 0);
+            const topStudent = config.topStudents[0];
+            const topStudentLine = topStudent ? `${topStudent.name} (${topStudent.hours} hours)` : 'No students have completed hours yet this period.';
+            const body = `Dear Dean of ${config.label},
+
+During this reporting period, ${totalSanctions} new sanctions were issued for ${config.label}. ${topStudent ? `The top student by service hours is ${topStudentLine}.` : 'No students have completed service hours this period.'}
+
+Please let me know if you would like a deeper breakdown.
+
+Best regards,
+Sanction Tracker Office`;
+            emailBody.value = body;
+            emailAddress.textContent = config.deanEmail;
+            modal.classList.add('active');
+        }
+
+        function closeModal() {
+            modal.classList.remove('active');
+        }
+
+        function printChart() {
+            if (!sanctionsChart || !chartCanvas) {
+                return;
+            }
+            const imageUrl = chartCanvas.toDataURL('image/png');
+            const printWindow = window.open('', '_blank', 'width=900,height=700');
+            if (!printWindow) {
+                alert('Pop-up blocked. Please enable pop-ups to print the chart.');
+                return;
+            }
+            printWindow.document.write('<html><head><title>Sanctions by Month</title></head><body style="margin:0">');
+            printWindow.document.write(
+                `<img src="${imageUrl}" style="width:100%; display:block;" alt="Sanctions chart">`
+            );
+            printWindow.document.write('</body></html>');
+            printWindow.document.close();
+            printWindow.focus();
+            printWindow.onload = () => {
+                printWindow.print();
+            };
+        }
+
+        function exportChart() {
+            if (!chartCanvas) {
+                return;
+            }
+            const downloadLink = document.createElement('a');
+            const filename = `sanctions-chart-${new Date().toISOString().slice(0, 10)}.png`;
+            downloadLink.download = filename;
+            downloadLink.href = chartCanvas.toDataURL('image/png');
+            downloadLink.style.display = 'none';
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+        }
+
+        function viewAllStudents() {
+            alert('Navigating to the full student ranking...');
+        }
+
+        function viewConcern(studentName) {
+            alert(`Opening concern record for ${studentName}.`);
+        }
+
+        function getCurrentReportConfig() {
+            const key = departmentSelect?.value || 'all';
+            return reportsData[key] || reportsData.all;
+        }
+
+        function sanitizeText(value) {
+            return (value ?? '').toString();
+        }
+
+        function openPrintableWindow(title, contentHtml, autoPrint = true) {
+            const printWindow = window.open('', '_blank', 'width=900,height=700');
+            if (!printWindow) {
+                alert('Pop-up blocked. Please enable pop-ups to print or export.');
+                return null;
+            }
+            const style = `
+                body { font-family: 'Inter', system-ui, sans-serif; margin: 0; padding: 32px; background: #f9f7ff; color: #1f1b3a; }
+                h1 { margin-bottom: 12px; font-size: 28px; }
+                h2 { margin-top: 24px; font-size: 18px; }
+                table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+                th, td { padding: 10px 12px; border-bottom: 1px solid rgba(15, 23, 42, 0.15); text-align: left; }
+                .muted { color: rgba(17, 24, 39, 0.6); margin-top: 0; }
+                ul { padding-left: 20px; margin: 0; }
+            `;
+            printWindow.document.write(`<!DOCTYPE html><html><head><title>${title}</title><style>${style}</style></head><body>${contentHtml}</body></html>`);
+            printWindow.document.close();
+            printWindow.focus();
+            if (autoPrint) {
+                printWindow.onload = () => {
+                    printWindow.print();
+                };
+            }
+            return printWindow;
+        }
+
+        function buildSummaryTable(summary) {
+            const rows = [
+                ['Required Hours', sanitizeText(summary.required)],
+                ['Completed Hours', sanitizeText(summary.completed)],
+                ['Remaining Hours', sanitizeText(summary.remaining)],
+                ['Completion', `${sanitizeText(summary.completion)}%`],
+            ];
+            return `
+                <table>
+                    <tbody>
+                        ${rows
+                            .map(
+                                ([label, value]) => `
+                                    <tr>
+                                        <th>${label}</th>
+                                        <td>${value}</td>
+                                    </tr>
+                                `
+                            )
+                            .join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function buildTopStudentsSection(topStudents) {
+            if (!topStudents?.length) {
+                return `<p class="muted">No students have completed service hours during this period.</p>`;
+            }
+            return `
+                <h2>Top Students by Service Hours</h2>
+                <ul>
+                    ${topStudents
+                        .map(
+                            student => `<li>${sanitizeText(student.name)} — ${sanitizeText(student.hours)} hrs</li>`
+                        )
+                        .join('')}
+                </ul>
+            `;
+        }
+
+        function printSanctionReport() {
+            const config = getCurrentReportConfig();
+            const content = `
+                <h1>Student Sanction Records — ${config.label}</h1>
+                <p class="muted">Sanction summary generated from the live dashboard data.</p>
+                ${buildSummaryTable(config.summary || {})}
+                ${buildTopStudentsSection(config.topStudents || [])}
+            `;
+            openPrintableWindow(`Sanction Report — ${config.label}`, content);
+        }
+
+        function downloadPDF() {
+            const config = getCurrentReportConfig();
+            const content = `
+                <h1>Student Sanction Records — ${config.label}</h1>
+                <p class="muted">After the print dialog opens, select “Save as PDF” to download this report.</p>
+                ${buildSummaryTable(config.summary || {})}
+                ${buildTopStudentsSection(config.topStudents || [])}
+            `;
+            const printWindow = openPrintableWindow(`Sanction Report PDF — ${config.label}`, content);
+            if (printWindow) {
+                printWindow.onload = () => {
+                    printWindow.print();
+                };
+            }
+        }
+
+        function printSummary() {
+            const config = getCurrentReportConfig();
+            const content = `
+                <h1>Community Service Hour Summary — ${config.label}</h1>
+                <p class="muted">Overview of approved, required, and remaining service hours.</p>
+                ${buildSummaryTable(config.summary || {})}
+            `;
+            openPrintableWindow(`Service Summary — ${config.label}`, content);
+        }
+
+        function downloadCSV() {
+            const config = getCurrentReportConfig();
+            const summary = config.summary || {};
+            const topStudents = config.topStudents || [];
+            const metaRows = [
+                ['Department', config.label],
+                ['Required Hours', sanitizeText(summary.required)],
+                ['Completed Hours', sanitizeText(summary.completed)],
+                ['Remaining Hours', sanitizeText(summary.remaining)],
+                ['Completion %', sanitizeText(summary.completion)],
+            ];
+            const csvLines = metaRows.map(row => row.map(cell => `"${cell.replace(/"/g, '""')}"`).join(','));
+            if (topStudents.length) {
+                csvLines.push('');
+                csvLines.push('"Top Student","Hours"');
+                topStudents.forEach(student => {
+                    csvLines.push(
+                        `"${sanitizeText(student.name).replace(/"/g, '""')}","${sanitizeText(student.hours)}"`
+                    );
+                });
+            }
+            const csvContent = csvLines.join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `service-hours-summary-${new Date().toISOString().slice(0, 10)}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+
+        if (monthFilter) {
+            monthFilter.addEventListener('change', (event) => {
+                activeMonthSelection = event.target.value;
+                applyMonthFilter();
+            });
+        }
+
+        departmentSelect.addEventListener('change', renderDepartmentMetrics);
+        generateButton.addEventListener('click', openReportModal);
+        copyButton.addEventListener('click', () => {
+            const text = emailBody.value.trim();
+            if (!text) {
+                return;
+            }
+            navigator.clipboard?.writeText(text).then(() => {
+                alert('Email copied to clipboard.');
+            }).catch(() => {
+                alert('Copy failed. Please copy the text manually.');
+            });
+        });
+
+        closeModalBtn.addEventListener('click', closeModal);
+        modal.addEventListener('click', (event) => {
+            if (event.target === modal) {
+                closeModal();
+            }
+        });
+
+        const logoutLink = document.querySelector('a[href*="logout"]');
+        if (logoutLink) {
+            logoutLink.addEventListener('click', function (e) {
+                if (!confirm('Are you sure you want to logout?')) {
+                    e.preventDefault();
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            renderDepartmentMetrics();
+        });
+</script>
+{% endblock %}

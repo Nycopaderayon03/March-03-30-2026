@@ -1,0 +1,526 @@
+{% extends 'panel/base.html' %}
+
+{% block title %}Service Hours - Sanction Tracker{% endblock %}
+{% block sidebar_subtitle %}Management System{% endblock %}
+{% block nav_service_hours_active %}active{% endblock %}
+{% block page_subtitle %}Community Service Validation{% endblock %}
+
+{% block content %}
+        {% if messages %}
+        <div class="messages">
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Service Hours Content -->
+        <div class="service-hours-content">
+            
+            <!-- Stats Overview -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-title">Pending Hours</div>
+                    <div class="stat-value">{{ pending_hours_total }}</div>
+                    <div class="stat-change">{{ pending_submission_count }} submission(s) awaiting validation</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Validated Hours</div>
+                    <div class="stat-value">{{ approved_hours_total }}</div>
+                    <div class="stat-change">{{ approved_submission_count }} approved submission(s)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Active Students</div>
+                    <div class="stat-value">{{ active_student_submission_count }}</div>
+                    <div class="stat-change">With pending submissions</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Completion Rate</div>
+                    <div class="stat-value">{{ completion_rate }}%</div>
+                    <div class="stat-change">Approval rate for reviewed submissions</div>
+                </div>
+            </div>
+
+            <!-- Submissions Section -->
+            <div class="pending-submissions-card">
+                <div class="subtitle">Service Submissions</div>
+                <p style="margin-bottom: 20px; color: var(--gray);">Review every submission, filter by status, and validate them as needed.</p>
+                
+                <!-- Filter Bar -->
+                <div class="filter-bar">
+                    <div class="search-box">
+                        <i class="material-icons">search</i>
+                        <input id="submissions-search" type="text" placeholder="Search by student name or ID...">
+                    </div>
+                    <div class="filter-tabs">
+                        <button class="filter-tab active" data-filter="all">All</button>
+                        <button class="filter-tab" data-filter="pending">Pending</button>
+                        <button class="filter-tab" data-filter="approved">Validated</button>
+                        <button class="filter-tab" data-filter="rejected">Rejected</button>
+                    </div>
+                </div>
+
+                <!-- Submissions Table -->
+                <div class="submissions-table-container">
+                    <table class="submissions-table">
+                        <thead>
+                            <tr>
+                                <th>Student Name</th>
+                                <th>Date</th>
+                                <th>Hours</th>
+                                <th>Status</th>
+                                <th>Description</th>
+                                <th>Proof</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="submissions-table-body">
+                            {% if service_submissions %}
+                                {% for submission in service_submissions %}
+                                <tr data-status="{{ submission.status }}">
+                                    <td>
+                                        <div class="student-info">
+                                            <span class="student-name">{{ submission.student_name }}</span>
+                                            <span class="student-id">{{ submission.student_id }}</span>
+                                        </div>
+                                    </td>
+                                    <td>{{ submission.date }}</td>
+                                    <td><strong>{{ submission.hours }}</strong> hours</td>
+                                    <td>
+                                        <span class="status-pill status-{{ submission.status }}">
+                                            {{ submission.status_label }}
+                                        </span>
+                                    </td>
+                                    <td class="description-cell">{{ submission.description }}</td>
+                                    <td>
+                                        {% if submission.proof_url %}
+                                        <a href="{{ submission.proof_url }}" target="_blank">View proof</a>
+                                        {% else %}
+                                        <span style="color: var(--gray);">None</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="action-buttons">
+                                            <button
+                                                class="btn btn-validate js-validate-btn"
+                                                data-submission-id="{{ submission.id }}"
+                                                data-student-name="{{ submission.student_name }}"
+                                                data-student-id="{{ submission.student_id }}"
+                                                data-date="{{ submission.date }}"
+                                                data-hours="{{ submission.hours }}"
+                                                data-description="{{ submission.description|escape }}"
+                                                data-image-url="{{ submission.proof_url }}"
+                                            >
+                                                <i class="material-icons" style="font-size: 16px;">check_circle</i>
+                                                Validate
+                                            </button>
+                                            <button
+                                                class="btn btn-view js-view-btn"
+                                                data-student-name="{{ submission.student_name }}"
+                                                data-student-id="{{ submission.student_id }}"
+                                                data-date="{{ submission.date }}"
+                                                data-hours="{{ submission.hours }}"
+                                                data-description="{{ submission.description|escapejs }}"
+                                                data-proof-url="{{ submission.proof_url }}"
+                                            >
+                                                <i class="material-icons" style="font-size: 16px;">visibility</i>
+                                                View
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                                <tr class="empty-row filter-empty-row" style="display:none;">
+                                    <td colspan="7" style="text-align:center; padding: 32px; color: var(--gray);">
+                                        No submissions match this filter.
+                                    </td>
+                                </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="7" style="text-align: center; padding: 32px; color: var(--gray);">
+                                    No submissions found yet.
+                                </td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Bulk Actions -->
+                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+                    <button class="btn btn-secondary" onclick="selectAll()">
+                        <i class="material-icons" style="font-size: 16px;">check_box</i>
+                        Select All
+                    </button>
+                    <button class="btn btn-validate" onclick="validateSelected()">
+                        <i class="material-icons" style="font-size: 16px;">done_all</i>
+                        Validate Selected
+                    </button>
+                </div>
+            </div>
+
+            <!-- Recent Validations -->
+            <div class="pending-submissions-card">
+                <div class="subtitle">Recently Validated</div>
+                <div class="submissions-table-container">
+                    <table class="submissions-table">
+                        <thead>
+                            <tr>
+                                <th>Student Name</th>
+                                <th>Date</th>
+                                <th>Hours</th>
+                                <th>Status</th>
+                                <th>Validated By</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for submission in recently_validated_submissions %}
+                            <tr>
+                                <td>
+                                    <div class="student-info">
+                                        <span class="student-name">{{ submission.student_name }}</span>
+                                        <span class="student-id">{{ submission.student_id }}</span>
+                                    </div>
+                                </td>
+                                <td>{{ submission.date }}</td>
+                                <td>{{ submission.hours }} hours</td>
+                                <td><span class="status-badge status-completed" style="background: #d1fae5; color: #059669; padding: 4px 8px; border-radius: 12px;">{{ submission.status_label }}</span></td>
+                                <td>{{ submission.reviewed_by }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" style="text-align: center; padding: 32px; color: var(--gray);">
+                                    No validated submissions yet.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-overlay validate" id="validate-modal">
+            <div class="validate-card">
+                <div class="validate-grid">
+                    <div class="validate-info">
+                        <h3>Validate Submission</h3>
+                        <p>Review the details and use the AI tool to confirm the authenticity of the submitted proof.</p>
+                        <div class="validate-details">
+                            <div><span>Student:</span> <span id="modal-student-name"></span></div>
+                            <div><span>Date:</span> <span id="modal-submission-date"></span></div>
+                            <div><span>Hours:</span> <span id="modal-hours-value"></span> hours</div>
+                            <div><span>Description:</span> <span id="modal-description-text"></span></div>
+                        </div>
+                        <div class="proof-preview">
+                            <img id="modal-proof-image" src="https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=800&q=80" alt="Submission proof">
+                        </div>
+                    </div>
+                    <div class="validate-ai">
+                        <h4>AI Verification</h4>
+                        <p class="validate-ai-description">Use the AI tool to determine whether the proof is genuine or sourced from elsewhere.</p>
+                        <button type="button" class="ai-verify-btn" id="ai-verify-btn">
+                            <i class="material-icons" style="font-size:16px;">auto_fix_high</i>
+                            Verify with AI
+                        </button>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-cancel" id="modal-cancel">Cancel</button>
+                    <button type="button" class="btn btn-danger" id="reject-btn">Reject</button>
+                    <button type="button" class="btn btn-approve" id="approve-btn">Approve</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-overlay" id="view-modal">
+            <div class="modal-card">
+                <button type="button" class="close-modal" aria-label="Close view modal" onclick="closeViewModal()">&times;</button>
+                <h3>Submission Details</h3>
+                <div class="validate-details">
+                    <div><span>Student:</span> <span id="view-student-name"></span></div>
+                    <div><span>Student ID:</span> <span id="view-student-id"></span></div>
+                    <div><span>Date:</span> <span id="view-date"></span></div>
+                    <div><span>Hours:</span> <span id="view-hours"></span></div>
+                    <div><span>Description:</span> <span id="view-description"></span></div>
+                </div>
+                <div class="proof-preview">
+                    <img id="view-proof" alt="Submission proof" />
+                    <span id="view-proof-empty" style="display:none; color: var(--gray);">No proof provided.</span>
+                </div>
+            </div>
+        </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+        // Validate individual hours
+        function validateHours(studentId, studentName, date, hours, description, imageUrl) {
+            openValidateModal(studentId, studentName, date, hours, description, imageUrl);
+        }
+
+        function openViewModal(studentName, studentId, date, hours, description, proofUrl) {
+            const modal = document.getElementById('view-modal');
+            if (!modal) return;
+            modal.classList.add('is-open');
+            document.body.classList.add('modal-open');
+            document.getElementById('view-student-name').textContent = studentName;
+            document.getElementById('view-student-id').textContent = studentId;
+            document.getElementById('view-date').textContent = date;
+            document.getElementById('view-hours').textContent = hours;
+            document.getElementById('view-description').textContent = description;
+            const proofImage = document.getElementById('view-proof');
+            if (proofUrl) {
+                proofImage.src = proofUrl;
+                proofImage.style.display = '';
+                document.getElementById('view-proof-empty').style.display = 'none';
+            } else {
+                proofImage.style.display = 'none';
+                document.getElementById('view-proof-empty').style.display = '';
+            }
+        }
+
+        function closeViewModal() {
+            const modal = document.getElementById('view-modal');
+            if (!modal) return;
+            modal.classList.remove('is-open');
+            document.body.classList.remove('modal-open');
+        }
+
+        function initViewModal() {
+            const modal = document.getElementById('view-modal');
+            if (!modal) return;
+            const closeButton = modal.querySelector('.close-modal');
+            if (closeButton) {
+                closeButton.addEventListener('click', closeViewModal);
+            }
+            modal.addEventListener('click', function (event) {
+                if (event.target === modal) {
+                    closeViewModal();
+                }
+            });
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape') {
+                    closeViewModal();
+                }
+            });
+        }
+
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let cookie of cookies) {
+                    cookie = cookie.trim();
+                    if (cookie.startsWith(name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        function updateSubmissionStatus(submissionId, status) {
+            const url = `{% url 'service_submission_status' submission_id=0 %}`.replace('/0/', `/${submissionId}/`);
+            const csrftoken = getCookie('csrftoken');
+            return fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': csrftoken || '',
+                },
+                body: new URLSearchParams({ status }),
+            }).then(response => {
+                if (!response.ok) {
+                    return response.json().then(data => {
+                        throw new Error(data.error || 'Unable to update submission');
+                    });
+                }
+                return response.json();
+            });
+        }
+
+        function openValidateModal(studentId, studentName, date, hours, description, imageUrl) {
+            const modal = document.getElementById('validate-modal');
+            if (!modal) return;
+            modal.dataset.currentId = studentId;
+            document.getElementById('modal-student-name').textContent = studentName;
+            document.getElementById('modal-submission-date').textContent = date;
+            document.getElementById('modal-hours-value').textContent = hours;
+            document.getElementById('modal-description-text').textContent = description;
+            const proofImage = document.getElementById('modal-proof-image');
+            if (!proofImage.dataset.originalSrc) {
+                proofImage.dataset.originalSrc = proofImage.src;
+            }
+            proofImage.src = imageUrl || proofImage.dataset.originalSrc;
+            modal.classList.add('is-open');
+        }
+
+        function closeValidateModal() {
+            const modal = document.getElementById('validate-modal');
+            if (!modal) return;
+            modal.classList.remove('is-open');
+        }
+
+        function triggerAICheck() {
+            alert('AI verification triggered. The system is checking the image authenticity.');
+        }
+
+        function handleDecision(outcome) {
+            const modal = document.getElementById('validate-modal');
+            const studentId = modal?.dataset.currentId || '';
+            if (!studentId) {
+                alert('Submission ID missing.');
+                return;
+            }
+            updateSubmissionStatus(studentId, outcome)
+                .then(() => {
+                    alert(`${outcome.charAt(0).toUpperCase() + outcome.slice(1)} submission ${studentId}.`);
+                    closeValidateModal();
+                    location.reload();
+                })
+                .catch(error => {
+                    alert(error.message);
+                });
+        }
+
+        function initValidateModal() {
+            const modal = document.getElementById('validate-modal');
+            if (!modal) return;
+            const overlay = modal;
+            const closeButton = modal.querySelector('.close-modal');
+            if (closeButton) closeButton.addEventListener('click', closeValidateModal);
+            const cancelButton = document.getElementById('modal-cancel');
+            if (cancelButton) cancelButton.addEventListener('click', closeValidateModal);
+            const approveButton = document.getElementById('approve-btn');
+            if (approveButton) approveButton.addEventListener('click', () => handleDecision('approved'));
+            const rejectButton = document.getElementById('reject-btn');
+            if (rejectButton) rejectButton.addEventListener('click', () => handleDecision('rejected'));
+            const aiButton = document.getElementById('ai-verify-btn');
+            if (aiButton) aiButton.addEventListener('click', triggerAICheck);
+            overlay.addEventListener('click', function(event) {
+                if (event.target === overlay) {
+                    closeValidateModal();
+                }
+            });
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape') {
+                    closeValidateModal();
+                }
+            });
+        }
+
+        function initValidateButtons() {
+            document.querySelectorAll('.js-validate-btn').forEach(button => {
+                button.addEventListener('click', () => {
+                    const submissionId = button.dataset.submissionId || '';
+                    const studentName = button.dataset.studentName || 'Student';
+                    const studentId = button.dataset.studentId || '';
+                    const date = button.dataset.date || '';
+                    const hours = button.dataset.hours || '0';
+                    const description = button.dataset.description || 'No description provided.';
+                    const imageUrl = button.dataset.imageUrl || '';
+                    const displayName = studentId ? `${studentName} (${studentId})` : studentName;
+
+                    openValidateModal(submissionId, displayName, date, hours, description, imageUrl);
+                });
+            });
+        }
+
+        function initSubmissionFilters() {
+            const searchInput = document.getElementById('submissions-search');
+            const rows = Array.from(document.querySelectorAll('#submissions-table-body tr[data-status]'));
+            const emptyRow = document.querySelector('.filter-empty-row');
+            const tabs = Array.from(document.querySelectorAll('.filter-tab'));
+            let activeFilter = 'all';
+
+            const applyFilters = () => {
+                const searchTerm = (searchInput?.value || '').trim().toLowerCase();
+                let visible = 0;
+                rows.forEach(row => {
+                    const status = (row.dataset.status || '').toLowerCase();
+                    const text = row.textContent.toLowerCase();
+                    const matchesFilter = activeFilter === 'all' || status === activeFilter;
+                    const matchesSearch = !searchTerm || text.includes(searchTerm);
+                    const shouldShow = matchesFilter && matchesSearch;
+                    row.style.display = shouldShow ? '' : 'none';
+                    if (shouldShow) visible += 1;
+                });
+                if (emptyRow) {
+                    emptyRow.style.display = visible ? 'none' : '';
+                }
+            };
+
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    tabs.forEach(item => item.classList.remove('active'));
+                    this.classList.add('active');
+                    activeFilter = (this.dataset.filter || 'all').toLowerCase();
+                    applyFilters();
+                });
+            });
+
+            if (searchInput) {
+                searchInput.addEventListener('input', applyFilters);
+            }
+
+            applyFilters();
+        }
+
+        function initViewButtons() {
+            document.querySelectorAll('.js-view-btn').forEach(button => {
+                button.addEventListener('click', function () {
+                    openViewModal(
+                        this.dataset.studentName,
+                        this.dataset.studentId,
+                        this.dataset.date,
+                        this.dataset.hours,
+                        this.dataset.description,
+                        this.dataset.proofUrl
+                    );
+                });
+            });
+        }
+
+        // Select all checkboxes (if you add them)
+        function selectAll() {
+            alert('Select all functionality would go here');
+        }
+
+        // Validate selected submissions
+        function validateSelected() {
+            alert('Validate selected submissions');
+        }
+
+        // Logout confirmation
+        const logoutLink = document.querySelector('a[href*="logout"]');
+        if (logoutLink) {
+            logoutLink.addEventListener('click', function(e) {
+                if (!confirm('Are you sure you want to logout?')) {
+                    e.preventDefault();
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            initValidateModal();
+            initValidateButtons();
+            initSubmissionFilters();
+            initViewButtons();
+            initViewModal();
+        });
+
+        // Add hover effects for action buttons
+        document.querySelectorAll('.btn-validate').forEach(btn => {
+            btn.addEventListener('mouseenter', function() {
+                this.style.transform = 'translateY(-2px)';
+            });
+            btn.addEventListener('mouseleave', function() {
+                this.style.transform = 'translateY(0)';
+            });
+        });
+</script>
+{% endblock %}

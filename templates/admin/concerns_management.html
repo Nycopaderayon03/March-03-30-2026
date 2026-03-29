@@ -1,0 +1,256 @@
+{% extends 'panel/base.html' %}
+
+{% block title %}Concerns - Sanction Tracker{% endblock %}
+{% block sidebar_subtitle %}Management System{% endblock %}
+{% block nav_concerns_active %}active{% endblock %}
+{% block page_title %}Student Concerns{% endblock %}
+{% block page_subtitle %}Review and address concerns submitted by students.{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block content %}
+        {% if messages %}
+        <div class="messages">
+            {% for message in messages %}
+                {% if "logged out" not in message|lower and "welcome" not in message|lower %}
+                <div class="alert alert-{{ message.tags }}">
+                    {{ message }}
+                </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+        {% endif %}
+        <div class="card">
+            <div class="card-header">
+                <p class="card-title">Inbox</p>
+                <p class="card-description">Review and address concerns submitted by students.</p>
+            </div>
+            <div class="card-content">
+                <div class="table-wrapper">
+                    <table class="concern-table">
+                        <thead>
+                            <tr>
+                                <th>Student Name</th>
+                                <th>Subject</th>
+                                <th>Date Submitted</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for concern in concerns %}
+                            <tr>
+                                <td>{{ concern.student_name }}</td>
+                                <td>{{ concern.subject }}</td>
+                                <td>{{ concern.date_submitted }}</td>
+                                <td>
+                                <span id="concern-status-{{ concern.id }}" class="status-pill status-{{ concern.status_class }}">{{ concern.status_label }}</span>
+                                </td>
+                                <td class="concern-actions">
+                                    <button
+                                        type="button"
+                                        class="view-concern-btn"
+                                        data-subject="{{ concern.subject }}"
+                                        data-student="{{ concern.student_name }}"
+                                        data-student-id="{{ concern.student_id }}"
+                                        data-concern-id="{{ concern.id }}"
+                                        data-date="{{ concern.date_submitted }}"
+                                        data-message="{{ concern.message|default:'No additional context provided.'|escape }}"
+                                        data-status-label="{{ concern.status_label }}"
+                                        data-status-class="{{ concern.status_class }}"
+                                        data-status-target="concern-status-{{ concern.id }}"
+                                    >
+                                        <i class="material-icons">visibility</i>
+                                        View
+                                    </button>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="empty-row">No concerns available.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="modal-overlay" id="concern-modal">
+            <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="concern-modal-subject">
+                <button type="button" class="close-modal" id="concern-modal-close" aria-label="Close concern details">&times;</button>
+                <div class="modal-header">
+                    <h3 id="concern-modal-subject">Concern Details</h3>
+                    <p class="modal-subtitle">From: <strong id="concern-modal-student">Student</strong> on <span id="concern-modal-date">Date</span></p>
+                </div>
+                <div class="modal-body">
+                    <p id="concern-modal-message">Detailed concern description will appear here.</p>
+                </div>
+                <div class="modal-status-wrapper">
+                    <span>Status:</span>
+                    <span id="concern-modal-status" class="status-pill status-new">New</span>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" id="modal-mark-progress" class="modal-btn modal-btn-outline">
+                        <i class="material-icons">timer</i>
+                        Mark as In Progress
+                    </button>
+                    <button type="button" id="modal-mark-resolved" class="modal-btn modal-btn-outline">
+                        <i class="material-icons">check</i>
+                        Mark as Resolved
+                    </button>
+                    <button type="button" id="modal-close-btn" class="modal-btn modal-btn-primary">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+        (function () {
+            const concernStatusUrlTemplate = "{% url 'concern_status' concern_id=0 %}";
+            const modalOverlay = document.getElementById('concern-modal');
+            const modalSubject = document.getElementById('concern-modal-subject');
+            const modalStudent = document.getElementById('concern-modal-student');
+            const modalDate = document.getElementById('concern-modal-date');
+            const modalMessage = document.getElementById('concern-modal-message');
+            const modalStatus = document.getElementById('concern-modal-status');
+            const btnProgress = document.getElementById('modal-mark-progress');
+            const btnResolved = document.getElementById('modal-mark-resolved');
+            const btnClose = document.getElementById('modal-close-btn');
+            const btnModalClose = document.getElementById('concern-modal-close');
+            const viewButtons = document.querySelectorAll('.view-concern-btn');
+            let activeViewButton = null;
+            let activeStatusElement = null;
+
+            function getCookie(name) {
+                let cookieValue = null;
+                if (document.cookie && document.cookie !== '') {
+                    const cookies = document.cookie.split(';');
+                    for (let cookie of cookies) {
+                        cookie = cookie.trim();
+                        if (cookie.startsWith(name + '=')) {
+                            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                            break;
+                        }
+                    }
+                }
+                return cookieValue;
+            }
+
+            function updateConcernStatus(statusClass, statusLabel) {
+                var normalizedLabel = statusLabel || 'Unknown';
+                var normalizedClass = statusClass || 'new';
+                if (modalStatus) {
+                    modalStatus.textContent = normalizedLabel;
+                    modalStatus.className = 'status-pill status-' + normalizedClass;
+                }
+                if (activeStatusElement) {
+                    activeStatusElement.textContent = normalizedLabel;
+                    activeStatusElement.className = 'status-pill status-' + normalizedClass;
+                }
+                if (activeViewButton) {
+                    activeViewButton.dataset.statusClass = normalizedClass;
+                    activeViewButton.dataset.statusLabel = normalizedLabel;
+                }
+            }
+
+            function persistConcernStatus(statusKey) {
+                if (!activeViewButton) {
+                    return Promise.reject(new Error('Open a concern before updating its status.'));
+                }
+                const concernId = activeViewButton.dataset.concernId;
+                if (!concernId) {
+                    return Promise.reject(new Error('Concern identifier is missing.'));
+                }
+                const url = concernStatusUrlTemplate.replace('/0/', `/${concernId}/`);
+                const csrftoken = getCookie('csrftoken');
+                return fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': csrftoken || '',
+                    },
+                    body: new URLSearchParams({ status: statusKey }),
+                }).then(response =>
+                    response.json().then(data => {
+                        if (!response.ok) {
+                            throw new Error(data.error || 'Unable to update concern status.');
+                        }
+                        const label = data.status_label || statusKey;
+                        const cssClass = data.status_class || statusKey;
+                        updateConcernStatus(cssClass, label);
+                        return data;
+                    })
+                );
+            }
+
+            function openModal(button) {
+                if (!button) {
+                    return;
+                }
+                activeViewButton = button;
+                var targetId = button.dataset.statusTarget;
+                activeStatusElement = targetId ? document.getElementById(targetId) : null;
+                if (modalSubject) {
+                    modalSubject.textContent = button.dataset.subject || 'Concern Details';
+                }
+                if (modalStudent) {
+                    var studentName = button.dataset.student || 'Student';
+                    var studentId = button.dataset.studentId || '';
+                    modalStudent.textContent = studentId ? studentName + ' (' + studentId + ')' : studentName;
+                }
+                if (modalDate) {
+                    modalDate.textContent = button.dataset.date || '';
+                }
+                if (modalMessage) {
+                    modalMessage.textContent = button.dataset.message || 'No additional context provided.';
+                }
+                updateConcernStatus(button.dataset.statusClass, button.dataset.statusLabel);
+                if (modalOverlay) {
+                    modalOverlay.classList.add('active');
+                }
+                document.body.classList.add('modal-open');
+            }
+
+            function closeModal() {
+                if (modalOverlay) {
+                    modalOverlay.classList.remove('active');
+                }
+                document.body.classList.remove('modal-open');
+            }
+
+            for (var i = 0; i < viewButtons.length; i++) {
+                (function (button) {
+                    button.addEventListener('click', function () {
+                        openModal(button);
+                    });
+                })(viewButtons[i]);
+            }
+
+            if (btnProgress) {
+                btnProgress.addEventListener('click', function () {
+                    persistConcernStatus('progress').catch(error => alert(error.message));
+                });
+            }
+            if (btnResolved) {
+                btnResolved.addEventListener('click', function () {
+                    persistConcernStatus('resolved').catch(error => alert(error.message));
+                });
+            }
+            if (btnClose) {
+                btnClose.addEventListener('click', closeModal);
+            }
+            if (btnModalClose) {
+                btnModalClose.addEventListener('click', closeModal);
+            }
+            if (modalOverlay) {
+                modalOverlay.addEventListener('click', function (event) {
+                    if (event.target === modalOverlay) {
+                        closeModal();
+                    }
+                });
+            }
+        })();
+</script>
+{% endblock %}

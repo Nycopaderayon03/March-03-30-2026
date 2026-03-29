@@ -1,0 +1,46 @@
+{% extends "Student/base.html" %}
+
+{% block title %}My Sanctions - Sanction Tracker{% endblock %}
+
+{% block page_title %}My Sanctions{% endblock %}
+{% block page_subtitle %}A detailed list of all sanctions assigned to you.{% endblock %}
+
+{% block page_body %}
+<section class="sanctions-grid">
+    {% for sanction in sanctions %}
+    <article class="sanction-card {% if sanction.due_status_class %}sanction-{{ sanction.due_status_class }}{% endif %}">
+        <div class="card-row">
+            <div>
+                <h3>{{ sanction.title }}</h3>
+                <p class="issued-text">Issued: {{ sanction.issued }}</p>
+                <p class="due-text">
+                    Due: {{ sanction.due_date|date:"F j, Y" }}
+                    {% if sanction.due_status %}
+                    <span class="due-badge due-{{ sanction.due_status_class|default:"" }}">{{ sanction.due_status }}</span>
+                    {% endif %}
+                </p>
+            </div>
+            <span class="status-badge {{ sanction.status_class }}">{{ sanction.status_label }}</span>
+        </div>
+        <div class="progress-row">
+            <p>Service Hours Progress</p>
+            <div class="progress-track">
+                <span class="progress-fill" style="width: {{ sanction.progress_percentage }}%;"></span>
+            </div>
+            <div class="progress-meta-row">
+                <p class="progress-meta">{{ sanction.completed_hours }} / {{ sanction.required_hours }} hrs</p>
+                <p class="progress-percent">{{ sanction.progress_percentage }}%</p>
+            </div>
+        </div>
+        {% if sanction.note %}
+        <div class="sanction-description">
+            <strong>Description</strong>
+            <p>{{ sanction.note }}</p>
+        </div>
+        {% endif %}
+    </article>
+    {% empty %}
+    <p class="activity-meta">You currently have no sanctions.</p>
+    {% endfor %}
+</section>
+{% endblock %}

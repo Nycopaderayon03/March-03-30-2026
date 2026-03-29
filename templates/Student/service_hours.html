@@ -1,0 +1,143 @@
+{% extends "Student/base.html" %}
+
+{% block title %}My Service Hours - Sanction Tracker{% endblock %}
+
+{% block page_title %}My Service Hours{% endblock %}
+{% block page_subtitle %}Track your progress and submit your completed service hours for validation.{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const proofInput = document.getElementById('proof-file');
+        const proofLabel = document.getElementById('proof-file-label');
+        const proofPreview = document.getElementById('proof-preview');
+        if (!proofInput || !proofLabel) return;
+        proofInput.addEventListener('change', function () {
+            const fileName = this.files?.[0]?.name;
+            proofLabel.textContent = fileName || 'No file chosen';
+            if (!proofPreview) return;
+            const file = this.files?.[0];
+            if (!file) {
+                proofPreview.innerHTML = '<p>No preview available yet.</p>';
+                return;
+            }
+            const isImage = file.type.startsWith('image/');
+            if (!isImage) {
+                proofPreview.innerHTML = '<p>Preview not available for this file type.</p>';
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = function (event) {
+                proofPreview.innerHTML = `<img src="${event.target.result}" alt="Proof preview" />`;
+            };
+            reader.readAsDataURL(file);
+        });
+    });
+</script>
+{% endblock %}
+
+{% block page_body %}
+<div class="service-overview">
+    <div class="progress-head">
+        <h3>Overall Progress</h3>
+        <div class="progress-totals">
+            <div>
+                <span>Required</span>
+                <strong>{{ required_hours }} hrs</strong>
+            </div>
+            <div>
+                <span>Completed</span>
+                <strong>{{ completed_hours }} hrs</strong>
+            </div>
+            <div>
+                <span>Remaining</span>
+                <strong>{{ remaining_hours }} hrs</strong>
+            </div>
+        </div>
+    </div>
+    <div class="progress-bar">
+        <span class="progress-bar-fill" style="width: {{ progress_percentage }}%;"></span>
+    </div>
+    <p class="progress-note">You have completed {{ progress_percentage }}% of your required hours.</p>
+</div>
+
+<div class="service-grid">
+    <div class="card-panel">
+        <h3>Log Service Hours</h3>
+        <p>Submit your completed hours for validation.</p>
+        <form method="POST" action="{% url 'student_service_hours' %}" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="form-field">
+                <label for="sanction">Sanction</label>
+                <select id="sanction" name="sanction" required>
+                    <option>Select a sanction to log hours for</option>
+                    {% for sanction in sanction_options %}
+                    <option value="{{ sanction.id }}">{{ sanction.title }}</option>
+                    {% empty %}
+                    <option disabled>No sanctions available</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-field">
+                <label>Date</label>
+                <input type="date" name="date" required />
+            </div>
+            <div class="form-field">
+                <label>Hours</label>
+                <input type="number" name="hours" placeholder="e.g., 2" min="0.25" step="0.25" required />
+            </div>
+            <div class="form-field">
+                <label>Description</label>
+                <textarea name="description" placeholder="Describe the work you performed..." required></textarea>
+            </div>
+            <div class="form-field">
+                <label>Proof of Completion</label>
+                <div class="file-field">
+                    <span id="proof-file-label">No file chosen</span>
+                    <input type="file" name="proof" id="proof-file" accept="image/*,application/pdf" required />
+                </div>
+                <small>Upload a photo or a scanned document as proof.</small>
+                <div class="proof-preview" id="proof-preview" aria-live="polite">
+                    <p>No preview available yet.</p>
+                </div>
+            </div>
+            <button class="submit-btn" type="submit">Submit for Validation</button>
+        </form>
+    </div>
+</div>
+
+<div id="submission-history" class="card-panel history-table-card">
+    <h3>Submission History</h3>
+    <p>A log of all your submissions.</p>
+    <div class="history-table-wrapper">
+        <table class="history-table student-history-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Hours</th>
+                    <th>Description</th>
+                    <th>Proof</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in submissions %}
+                <tr>
+                    <td>{{ entry.date }}</td>
+                    <td>{{ entry.hours }}</td>
+                    <td>{{ entry.description }}</td>
+                    <td>
+                        {% if entry.proof_url %}
+                        <a href="{{ entry.proof_url }}" target="_blank">View proof</a>
+                        {% else %}
+                        <span class="history-empty">No proof</span>
+                        {% endif %}
+                    </td>
+                    <td><span class="status-pill {{ entry.status_class }}">{{ entry.status }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

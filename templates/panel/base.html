@@ -1,0 +1,85 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Admin Panel - Sanction Tracker{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'css/admin-theme.css' %}">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    {% block extra_css %}{% endblock %}
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-logo">
+                <img src="{% static 'images/logo1.png' %}" alt="School logo">
+            </div>
+            <h1>Admin Panel</h1>
+            <p>{% block sidebar_subtitle %}Sanction Tracker System{% endblock %}</p>
+        </div>
+
+        <div class="nav-section">
+            <h3>Main</h3>
+            <a href="{% url 'admin_dashboard' %}" class="nav-item {% block nav_dashboard_active %}{% endblock %}">
+                <i class="material-icons">dashboard</i>
+                <span>Dashboard</span>
+            </a>
+        </div>
+
+        <div class="nav-section">
+            <h3>Management</h3>
+            <a href="{% url 'student_management' %}" class="nav-item {% block nav_students_active %}{% endblock %}">
+                <i class="material-icons">people</i>
+                <span>Students</span>
+            </a>
+            <a href="{% url 'sanction_management' %}" class="nav-item {% block nav_sanctions_active %}{% endblock %}">
+                <i class="material-icons">gavel</i>
+                <span>Sanctions</span>
+            </a>
+            <a href="{% url 'servicehours_management' %}" class="nav-item {% block nav_service_hours_active %}{% endblock %}">
+                <i class="material-icons">schedule</i>
+                <span>Service Hours</span>
+            </a>
+            <a href="{% url 'reports_management' %}" class="nav-item {% block nav_reports_active %}{% endblock %}">
+                <i class="material-icons">assessment</i>
+                <span>Reports</span>
+            </a>
+            <a href="{% url 'concerns_management' %}" class="nav-item {% block nav_concerns_active %}{% endblock %}">
+                <i class="material-icons">warning</i>
+                <span>Concerns</span>
+            </a>
+        </div>
+
+        <div class="nav-section" style="margin-top: auto;">
+            <a href="{% url 'logout' %}" class="nav-item">
+                <i class="material-icons">logout</i>
+                <span>Logout</span>
+            </a>
+        </div>
+    </div>
+
+    <div class="main-content">
+        {% block top_bar %}
+        <div class="top-bar">
+            <div class="page-title">
+                <h2>{% block page_title %}Sanction Tracker{% endblock %}</h2>
+                <p>{% block page_subtitle %}Dashboard{% endblock %}</p>
+            </div>
+        </div>
+        {% endblock %}
+
+        {% block content %}{% endblock %}
+
+        {% block footer %}
+        <div class="footer">
+            <p>© 2026 Sanction Tracker System. All rights reserved.</p>
+        </div>
+        {% endblock %}
+    </div>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

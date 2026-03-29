@@ -1,0 +1,37 @@
+{% extends "Student/base.html" %}
+
+{% block title %}Help Center - Sanction Tracker{% endblock %}
+
+{% block page_title %}Help Center & Support{% endblock %}
+{% block page_subtitle %}Report an issue or ask a question about your sanctions.{% endblock %}
+
+{% block page_body %}
+<div class="help-page-content">
+    <div class="help-card-wrapper">
+        <div class="help-card">
+            <h3>Submit a Concern</h3>
+            <p>Use this form to report any discrepancies or issues with your account or sanctions.</p>
+            <form method="POST" action="{% url 'student_help_center' %}">
+                {% csrf_token %}
+                <div class="form-field">
+                    <label for="concern-topic">Subject of Concern</label>
+                    <select id="concern-topic" name="subject" required>
+                        <option disabled selected>Select a reason...</option>
+                        {% for topic in concern_topics %}
+                        <option value="{{ topic }}">{{ topic }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label for="concern-description">Detailed Description</label>
+                    <textarea id="concern-description" name="message" placeholder="Please provide as much detail as possible, including dates, sanction names, or any other relevant information." required></textarea>
+                </div>
+                <button class="submit-btn" type="submit">
+                    <i class="material-icons">send</i>
+                    Submit Concern
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

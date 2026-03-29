@@ -1,0 +1,69 @@
+{% extends "Student/base.html" %}
+
+{% block title %}My Records - Sanction Tracker{% endblock %}
+
+{% block page_title %}My Records{% endblock %}
+{% block page_subtitle %}A permanent, read-only log of your sanction and service history.{% endblock %}
+
+{% block page_body %}
+<div class="records-page">
+    <div class="records-heading">
+        <div>
+            <h3>My Records</h3>
+            <p>A permanent, read-only log of your sanction and service history.</p>
+        </div>
+        <button type="button" class="print-btn" onclick="window.print()" aria-label="Print your records">
+            <i class="material-icons">print</i>
+            Print Records
+        </button>
+    </div>
+    <div class="records-card">
+        <h4>Sanction History</h4>
+        <p>A log of every sanction assigned to you.</p>
+        <table class="history-table student-history-table">
+            <thead>
+                <tr>
+                    <th>Violation</th>
+                    <th>Date Issued</th>
+                    <th>Hours Required</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for sanction in sanctions %}
+                <tr>
+                    <td>{{ sanction.violation }}</td>
+                    <td>{{ sanction.issued }}</td>
+                    <td>{{ sanction.hours_required }}</td>
+                    <td><span class="status-pill {{ sanction.status_class }}">{{ sanction.status_label }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="records-card">
+        <h4>Community Service History</h4>
+        <p>Only approved hours are shown here.</p>
+        <table class="history-table student-history-table">
+            <thead>
+                <tr>
+                    <th>Date Completed</th>
+                    <th>Hours</th>
+                    <th>Sanction</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in community_hours %}
+                <tr>
+                    <td>{{ entry.date }}</td>
+                    <td>{{ entry.hours }}</td>
+                    <td>{{ entry.sanction_title }}</td>
+                    <td>{{ entry.description }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

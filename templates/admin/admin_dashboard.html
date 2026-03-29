@@ -1,0 +1,136 @@
+{% extends 'panel/base.html' %}
+
+{% block title %}Admin Panel - Sanction Tracker{% endblock %}
+{% block nav_dashboard_active %}active{% endblock %}
+{% block page_subtitle %}Dashboard{% endblock %}
+
+{% block content %}
+        <!-- Welcome Banner (only show welcome messages) -->
+        {% if messages %}
+            {% for message in messages %}
+                {% if "welcome" in message|lower %}
+                <div class="welcome-banner">
+                    <div class="icon">A</div>
+                    <div class="text">{{ message }}</div>
+                </div>
+                {% endif %}
+            {% endfor %}
+        {% endif %}
+
+        <!-- Dashboard Content -->
+        <div class="dashboard-content">
+            <!-- Stats Grid -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-title">Total Students</div>
+                    <div class="stat-value">{{ total_students }}</div>
+                    <div class="stat-change">{{ students_change }}</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-title">Students with Active Sanctions</div>
+                    <div class="stat-value">{{ active_sanctions }}</div>
+                    <div class="stat-change">{{ sanctions_change }}</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-title">Completed Sanctions</div>
+                    <div class="stat-value">{{ completed_sanctions }}</div>
+                    <div class="stat-period">{{ completed_period }}</div>
+                </div>
+            </div>
+
+            <div class="recent-panel-grid">
+                <!-- Recent Activity -->
+                <div class="recent-activity">
+                <div class="section-title">Recent Activity</div>
+                
+                {% if recent_activities %}
+                    <div class="activity-list">
+                        {% for activity in recent_activities %}
+                            <div class="activity-item">
+                                <div class="activity-icon">
+                                    <i class="material-icons">{{ activity.icon }}</i>
+                                </div>
+                                <div>
+                                    <strong>{{ activity.title }}</strong>
+                                    <p>{{ activity.details }}</p>
+                                    <small class="activity-time" data-timestamp="{{ activity.timestamp_iso }}">{{ activity.time }}</small>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="activity-placeholder">
+                        <i class="material-icons">inbox</i>
+                        <p>No recent activity to display.</p>
+                    </div>
+                {% endif %}
+                </div>
+                <div class="recent-sanctions">
+                    <div class="section-title">Recent Sanctioned Students</div>
+                    {% if recent_sanction_students %}
+                    <div class="recent-sanctions-list">
+                        {% for sanction in recent_sanction_students %}
+                        <div class="recent-sanction-item">
+                            <div>
+                                <strong>{{ sanction.student_name }}</strong>
+                                <p>{{ sanction.violation }}</p>
+                            </div>
+                            <div class="sanction-meta">
+                                <span class="status-pill status-{{ sanction.status_label|lower }}">{{ sanction.status_label }}</span>
+                                <small>{{ sanction.date }}</small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="activity-placeholder">
+                        <i class="material-icons">gavel</i>
+                        <p>No recent sanctions yet.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+        // Add active class to clicked nav items
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', function(e) {
+                if (!this.classList.contains('active')) {
+                    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+                    this.classList.add('active');
+                }
+            });
+        });
+
+        // Logout confirmation
+        const logoutLink = document.querySelector('a[href*="logout"]');
+        if (logoutLink) {
+            logoutLink.addEventListener('click', function(e) {
+                if (!confirm('Are you sure you want to logout?')) {
+                    e.preventDefault();
+                }
+            });
+        }
+
+        document.querySelectorAll('.activity-time[data-timestamp]').forEach(el => {
+            const iso = el.getAttribute('data-timestamp');
+            if (!iso) return;
+            const parsed = new Date(iso);
+            if (Number.isNaN(parsed.getTime())) return;
+            el.textContent = parsed.toLocaleString(undefined, {
+                month: 'short',
+                day: '2-digit',
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true,
+            });
+        });
+
+</script>
+{% endblock %}
