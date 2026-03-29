@@ -83,7 +83,17 @@ def format_hours(value):
 
 
 def normalize_gravity(raw_value):
-    valid_gravity = {"minor": "Minor", "major": "Major", "grave": "Grave"}
+    valid_gravity = {
+        "minor": "Minor",
+        "major": "Less Grave",
+        "less grave": "Less Grave",
+        "less_grave": "Less Grave",
+        "less-grave": "Less Grave",
+        "grave": "Grave",
+        "restorative justice": "Restorative Justice",
+        "restorative_justice": "Restorative Justice",
+        "restorative-justice": "Restorative Justice",
+    }
     if not raw_value:
         return "Minor"
     return valid_gravity.get(raw_value.strip().lower(), "Minor")

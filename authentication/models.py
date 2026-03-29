@@ -70,13 +70,14 @@ class User(AbstractUser):
 class SanctionType(models.Model):
     GRAVITY_CHOICES = (
         ("Minor", "Minor"),
-        ("Major", "Major"),
+        ("Less Grave", "Less Grave"),
         ("Grave", "Grave"),
+        ("Restorative Justice", "Restorative Justice"),
     )
 
     description = models.CharField(max_length=255, unique=True)
     hours = models.PositiveIntegerField(default=1)
-    gravity = models.CharField(max_length=10, choices=GRAVITY_CHOICES, default="Minor")
+    gravity = models.CharField(max_length=32, choices=GRAVITY_CHOICES, default="Minor")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -88,7 +89,7 @@ class SanctionType(models.Model):
 
     @property
     def gravity_class(self):
-        return self.gravity.lower()
+        return self.gravity.lower().replace(" ", "-")
 
 
 class Sanction(models.Model):
