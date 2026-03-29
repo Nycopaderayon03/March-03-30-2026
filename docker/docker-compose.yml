@@ -17,7 +17,7 @@ services:
 
   web:
     build:
-      context: ..
+      context: .
       dockerfile: docker/Dockerfile
     container_name: sanctiontracker-web
     restart: unless-stopped
@@ -42,7 +42,7 @@ services:
       db:
         condition: service_healthy
     volumes:
-      - ..:/app
+      - .:/app
       - media_data:/app/media
       - static_data:/app/staticfiles
 
@@ -58,8 +58,8 @@ services:
     environment:
       DOMAIN: ${DOMAIN:-jmcedu.duckdns.org}
     volumes:
-      - ../nginx/templates:/etc/nginx/templates:ro
-      - ../nginx/init-nginx.sh:/docker-entrypoint.d/99-init-nginx.sh:ro
+      - ./nginx/templates:/etc/nginx/templates:ro
+      - ./nginx/init-nginx.sh:/docker-entrypoint.d/99-init-nginx.sh:ro
       - certbot_www:/var/www/certbot
       - letsencrypt_certs:/etc/letsencrypt
 

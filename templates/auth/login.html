@@ -10,208 +10,211 @@
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --panel-purple: #7a207f;
-            --button-pink: #d55ac8;
-            --button-pink-hover: #bf47b2;
-            --input-bg: #ededed;
-            --text-light: #ffffff;
-            --text-dark: #111111;
+            --brand-purple: #7a207f;
+            --input-border: #cccccc;
+            --card-bg: #ffffff;
         }
 
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            font-family: "Montserrat", "Segoe UI", Arial, sans-serif;
+            font-family: "Montserrat", sans-serif;
         }
 
         body {
             min-height: 100vh;
-            background: #c5c5c5;
             display: flex;
             align-items: center;
             justify-content: center;
+            position: relative;
+            padding: 24px 16px;
+            background-color: #333;
         }
 
-        .page {
-            width: min(980px, 100vw);
-            min-height: min(640px, 100vh);
-            display: flex;
-            background: #ffffff;
-        }
-
-        .left-panel {
-            flex: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: #ffffff;
-            padding: 24px;
-        }
-
-        .logo {
-            width: min(320px, 82%);
-            height: auto;
-            object-fit: contain;
-        }
-
-        .right-panel {
-            flex: 1;
-            background: var(--panel-purple);
-            color: var(--text-light);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 38px 44px;
+        .background-image {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url("{% static 'images/jmc.jpg' %}");
+            background-size: cover;
+            background-position: center;
+            filter: blur(8px);
+            z-index: -1;
         }
 
         .login-card {
-            width: 100%;
-            max-width: 360px;
+            background-color: var(--card-bg);
+            width: 90%;
+            max-width: 420px;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            text-align: center;
         }
 
-        .login-title {
-            text-align: center;
-            font-size: 40px;
-            font-weight: 800;
-            line-height: 1.08;
-            letter-spacing: 0.5px;
-            margin-bottom: 40px;
+        .logo {
+            max-width: 100px;
+            margin-bottom: 20px;
+        }
+
+        .system-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--brand-purple);
+            margin-bottom: 30px;
             text-transform: uppercase;
         }
 
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+
         .form-group {
-            margin-bottom: 22px;
+            text-align: left;
         }
 
         .form-group label {
+            font-size: 12px;
+            color: #666;
+            font-weight: 700;
+            text-transform: uppercase;
             display: block;
-            margin-bottom: 8px;
-            font-size: 16px;
-            color: var(--text-dark);
-            font-weight: 600;
-            text-transform: lowercase;
+            margin-bottom: 5px;
         }
 
         .form-control {
             width: 100%;
-            border: none;
-            background: var(--input-bg);
-            border-radius: 999px;
-            padding: 14px 18px;
+            padding: 10px 0;
             font-size: 16px;
+            border: none;
+            border-bottom: 2px solid var(--input-border);
+            background: transparent;
+            outline: none;
+            transition: border-color 0.3s;
         }
 
         .form-control:focus {
-            outline: 2px solid #ffffff;
-            outline-offset: 2px;
-        }
-
-        .messages {
-            margin-bottom: 16px;
-        }
-
-        .alert {
-            border-radius: 10px;
-            padding: 10px 12px;
-            font-size: 13px;
-            margin-bottom: 8px;
-        }
-
-        .alert-error {
-            background: #ffdede;
-            color: #680000;
-        }
-
-        .alert-success {
-            background: #dcffe4;
-            color: #085a15;
+            border-bottom-color: var(--brand-purple);
         }
 
         .login-button {
-            width: 78%;
-            display: block;
-            margin: 26px auto 0;
-            border: none;
-            border-radius: 999px;
-            padding: 13px 16px;
-            font-size: 24px;
-            font-weight: 800;
-            color: var(--text-light);
-            background: var(--button-pink);
-            cursor: pointer;
+            width: 100%;
+            padding: 14px;
+            font-size: 16px;
+            font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: 0.4px;
-            transition: background 0.2s ease;
+            color: #fff;
+            background-color: var(--brand-purple);
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
         }
 
         .login-button:hover {
-            background: var(--button-pink-hover);
+            opacity: 0.9;
         }
 
-        @media (max-width: 768px) {
-            .page {
-                flex-direction: column;
-                min-height: 100vh;
+        .login-alert {
+            margin-bottom: 20px;
+            padding: 12px 14px;
+            border-radius: 8px;
+            background: #fee2e2;
+            color: #b91c1c;
+            font-size: 14px;
+            font-weight: 600;
+            text-align: left;
+            border: 1px solid #fecaca;
+        }
+
+        @media (max-width: 576px) {
+            body {
+                padding: 16px;
+                align-items: stretch;
             }
 
-            .left-panel {
-                min-height: 38vh;
+            .login-card {
+                width: 100%;
+                max-width: 100%;
+                margin: auto;
+                padding: 28px 20px;
+                border-radius: 14px;
             }
 
-            .right-panel {
-                min-height: 62vh;
-                padding: 28px 24px;
+            .logo {
+                max-width: 84px;
+                margin-bottom: 16px;
             }
 
-            .login-title {
-                font-size: 30px;
-                margin-bottom: 28px;
+            .system-title {
+                font-size: 16px;
+                margin-bottom: 24px;
+                line-height: 1.4;
+            }
+
+            form {
+                gap: 20px;
+            }
+
+            .form-control {
+                font-size: 16px;
+                padding: 12px 0;
             }
 
             .login-button {
-                width: 100%;
-                font-size: 20px;
+                padding: 13px;
+            }
+        }
+
+        @media (max-width: 360px) {
+            .login-card {
+                padding: 24px 16px;
+            }
+
+            .system-title {
+                font-size: 15px;
             }
         }
     </style>
 </head>
 <body>
-    <div class="page">
-        <section class="left-panel">
-            <img class="logo" src="{% static 'images/logo1.png' %}" alt="School logo">
-        </section>
-        <section class="right-panel">
-            <div class="login-card">
-                <h1 class="login-title">Student Sanction System</h1>
+    <div class="background-image"></div>
 
-                <form method="POST" action="{% url 'login' %}">
-                    {% csrf_token %}
+    <div class="login-card">
+        <img class="logo" src="{% static 'images/logo1.png' %}" alt="Logo">
+        <h1 class="system-title">Student Sanction System</h1>
 
-                    {% if messages %}
-                    <div class="messages">
-                        {% for message in messages %}
-                        <div class="alert alert-{{ message.tags }}">
-                            {{ message }}
-                        </div>
-                        {% endfor %}
-                    </div>
-                    {% endif %}
+        {% if messages %}
+            {% for message in messages %}
+                {% if request.method == 'POST' %}
+                    {% with tags=message.tags|default:''|lower %}
+                        {% if 'error' in tags or 'danger' in tags %}
+                            <div class="login-alert">{{ message }}</div>
+                        {% endif %}
+                    {% endwith %}
+                {% endif %}
+            {% endfor %}
+        {% endif %}
 
-                    <div class="form-group">
-                        <label for="username">username:</label>
-                        <input type="text" id="username" name="username" class="form-control" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="password">password:</label>
-                        <input type="password" id="password" name="password" class="form-control" required>
-                    </div>
-
-                    <button type="submit" class="login-button">Login</button>
-                </form>
+        <form method="POST" action="{% url 'login' %}">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" class="form-control" required>
             </div>
-        </section>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" class="form-control" required>
+            </div>
+
+            <button type="submit" class="login-button">Sign In</button>
+        </form>
     </div>
 </body>
 </html>
