@@ -1249,6 +1249,71 @@ body {
     padding: 8px 10px;
     background: var(--white);
 }
+.semester-controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(220px, 1fr));
+    align-items: flex-start;
+    gap: 10px 12px;
+    width: 100%;
+}
+.semester-controls .control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+    max-width: none;
+}
+.semester-controls label {
+    font-size: 12px;
+    color: var(--gray-dark);
+    white-space: nowrap;
+}
+.semester-controls select,
+.semester-controls input {
+    width: 100%;
+    height: 44px;
+    border-radius: 14px;
+    border: 2px solid #2d1730;
+    padding: 0 12px;
+    background: var(--white);
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 1.2;
+    color: #2d1730;
+}
+.semester-controls select:focus,
+.semester-controls input:focus {
+    outline: none;
+    border-color: #2d1730;
+    box-shadow: none;
+}
+.semester-controls input::placeholder {
+    color: #7b7281;
+}
+.semester-controls .control-actions {
+    align-self: end;
+}
+.period-actions {
+    display: flex;
+    gap: 8px;
+}
+.period-actions .btn {
+    min-width: 92px;
+    padding: 8px 14px;
+}
+.semester-controls input[readonly],
+.semester-controls select:disabled {
+    background: #f5f3f8;
+    color: #4b3e56;
+}
+@media (max-width: 720px) {
+    .semester-controls {
+        grid-template-columns: 1fr;
+    }
+    .semester-controls .control-actions {
+        align-self: stretch;
+    }
+}
 .chart-wrapper {
     width: 100%;
     height: 260px;
@@ -1352,6 +1417,17 @@ body {
 .reports-note {
     font-size: 13px;
     color: var(--gray);
+}
+.reports-note.dev {
+    color: #92400e;
+    font-weight: 700;
+    font-size: 15px;
+    line-height: 1.5;
+    background: #fff7ed;
+    border: 1px solid #fdba74;
+    border-left: 4px solid #f97316;
+    border-radius: 10px;
+    padding: 10px 12px;
 }
 .reports-note.error {
     color: #dc2626;

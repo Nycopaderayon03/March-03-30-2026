@@ -79,19 +79,33 @@
                     <div class="report-card students-card">
                         <div class="report-title">
                             <i class="material-icons">star</i>
-                            Reports by Service Hours (Semester)
+                            Total Students by Semester
                         </div>
-                        <div class="chart-controls">
-                            <label for="semester-filter">Semester</label>
-                            <select id="semester-filter">
-                                <option value="all">Loading...</option>
-                            </select>
+                        <div class="chart-controls semester-controls">
+                            <div class="control-group">
+                                <label for="semester-filter">Computed semester</label>
+                                <select id="semester-filter">
+                                    <option value="all">Loading...</option>
+                                </select>
+                            </div>
+                            <div class="control-group">
+                                <label for="school-year-input">School year</label>
+                                <input id="school-year-input" type="text" maxlength="20" placeholder="e.g. 2025-2026" />
+                            </div>
+                            <div class="control-group control-actions">
+                                <label>Actions</label>
+                                <div class="period-actions">
+                                    <button id="save-period-btn" class="btn btn-primary" type="button">Save</button>
+                                    <button id="edit-period-btn" class="btn btn-secondary" type="button">Edit</button>
+                                </div>
+                                <span id="period-saved-indicator" class="report-description" hidden>Saved</span>
+                            </div>
                         </div>
                         <div class="chart-wrapper semester-chart-wrapper">
                             <canvas id="semester-hours-chart" height="220"></canvas>
                         </div>
-                        <p id="semester-empty" class="report-description" hidden>No semester data available.</p>
-                        <p id="students-period-meta" class="report-description">Loading ranking period...</p>
+                        <p id="semester-empty" class="report-description" hidden>No students found for this semester.</p>
+                        <p id="students-period-meta" class="report-description">Loading period...</p>
                         <div class="card-footer">
                             <button class="btn btn-secondary" type="button" onclick="printSemesterChart()">
                                 <i class="material-icons">print</i>
@@ -149,6 +163,7 @@
                         Email Department Report
                     </div>
                     <p class="report-description">Generate a summary email for the selected dean.</p>
+                    <p class="reports-note dev">Testing reminder: "Generate Email for Dean" is still under development.</p>
                     <div class="email-actions">
                         <button class="btn btn-primary" id="generate-report-email" type="button">Generate Email for Dean</button>
                     </div>
@@ -192,6 +207,10 @@
         const chartFilterCount = document.getElementById('chart-filter-count');
         const chartFilterPeriod = document.getElementById('chart-filter-period');
         const semesterFilter = document.getElementById('semester-filter');
+        const schoolYearInput = document.getElementById('school-year-input');
+        const savePeriodBtn = document.getElementById('save-period-btn');
+        const editPeriodBtn = document.getElementById('edit-period-btn');
+        const periodSavedIndicator = document.getElementById('period-saved-indicator');
         const studentsPeriodMeta = document.getElementById('students-period-meta');
         const semesterEmpty = document.getElementById('semester-empty');
         const noteEl = document.getElementById('reports-note');
@@ -206,6 +225,8 @@
         let semesterHoursChart = null;
         let currentChartConfig = reportsData.all || null;
         let activeMonthSelection = 'all';
+        const SCHOOL_YEAR_STORAGE_KEY = 'reports_school_year';
+        const SEMESTER_STORAGE_KEY = 'reports_semester';
 
         function escapeHtml(value) {
             return (value ?? '')
@@ -219,6 +240,77 @@
 
         function getCssColor(variable, fallback) {
             return getComputedStyle(document.documentElement).getPropertyValue(variable).trim() || fallback;
+        }
+
+        function loadSavedSchoolYear() {
+            try {
+                return window.localStorage.getItem(SCHOOL_YEAR_STORAGE_KEY) || '';
+            } catch (error) {
+                return '';
+            }
+        }
+
+        function loadSavedSemester() {
+            try {
+                return window.localStorage.getItem(SEMESTER_STORAGE_KEY) || '';
+            } catch (error) {
+                return '';
+            }
+        }
+
+        function saveSchoolYear(value) {
+            try {
+                const normalized = (value ?? '').toString().trim();
+                if (!normalized) {
+                    window.localStorage.removeItem(SCHOOL_YEAR_STORAGE_KEY);
+                    return;
+                }
+                window.localStorage.setItem(SCHOOL_YEAR_STORAGE_KEY, normalized);
+            } catch (error) {
+                // Ignore storage errors and keep UI functional.
+            }
+        }
+
+        function saveSemesterValue(value) {
+            try {
+                const normalized = (value ?? '').toString().trim();
+                if (!normalized) {
+                    window.localStorage.removeItem(SEMESTER_STORAGE_KEY);
+                    return;
+                }
+                window.localStorage.setItem(SEMESTER_STORAGE_KEY, normalized);
+            } catch (error) {
+                // Ignore storage errors and keep UI functional.
+            }
+        }
+
+        function hasSemesterOption(value) {
+            if (!semesterFilter || !value) {
+                return false;
+            }
+            return Array.from(semesterFilter.options).some(option => option.value === value);
+        }
+
+        function setPeriodEditMode(isEditing) {
+            if (semesterFilter) {
+                semesterFilter.disabled = !isEditing;
+            }
+            if (schoolYearInput) {
+                schoolYearInput.readOnly = !isEditing;
+            }
+            if (savePeriodBtn) {
+                savePeriodBtn.disabled = !isEditing;
+            }
+            if (editPeriodBtn) {
+                editPeriodBtn.disabled = isEditing;
+            }
+        }
+
+        function setSavedIndicator(isVisible) {
+            if (!periodSavedIndicator) {
+                return;
+            }
+            periodSavedIndicator.hidden = !isVisible;
         }
 
         const chartTheme = {
@@ -238,7 +330,7 @@
                     labels: [],
                     datasets: [
                         {
-                            label: 'Approved Hours',
+                            label: 'Total Students',
                             data: [],
                             backgroundColor: chartTheme.base,
                             borderRadius: 10,
@@ -254,6 +346,7 @@
                             beginAtZero: true,
                             ticks: {
                                 precision: 0,
+                                stepSize: 1,
                                 color: 'rgba(59, 47, 87, 0.8)',
                             },
                             grid: {
@@ -265,11 +358,7 @@
                                 display: false,
                             },
                             ticks: {
-                                color: 'rgba(59, 47, 87, 0.9)',
-                                callback(value) {
-                                    const label = this.getLabelForValue(value) || '';
-                                    return label.length > 12 ? `${label.slice(0, 12)}...` : label;
-                                },
+                                display: false,
                             },
                         },
                     },
@@ -278,10 +367,14 @@
                             display: false,
                         },
                         tooltip: {
+                            displayColors: false,
                             callbacks: {
+                                title() {
+                                    return '';
+                                },
                                 label(context) {
                                     const value = context.parsed.y ?? context.parsed ?? 0;
-                                    return `${value} hour(s)`;
+                                    return `Total students: ${value}`;
                                 },
                             },
                         },
@@ -413,7 +506,7 @@
             }
             currentChartConfig = config;
             applyMonthFilter();
-            renderTopStudents(config, true);
+            renderTopStudents(config, false);
             updateNoteText(key);
         }
 
@@ -428,6 +521,14 @@
                 return matched;
             }
             return useDefault ? buckets[0] : null;
+        }
+
+        function getCustomPeriodLabel(fallbackLabel = 'Selected semester') {
+            const schoolYearLabel = schoolYearInput?.value?.trim() || '';
+            if (schoolYearLabel) {
+                return `${fallbackLabel} (${schoolYearLabel})`;
+            }
+            return fallbackLabel;
         }
 
         function renderTopStudents(config, resetSemesterSelection = false) {
@@ -456,9 +557,9 @@
             }
 
             const selectedBucket = getSelectedSemesterBucket(config, true);
-            const selectedStudents = selectedBucket?.students || [];
+            const totalStudents = Number(selectedBucket?.totalStudents || 0);
 
-            if (!selectedStudents.length) {
+            if (!totalStudents) {
                 if (semesterChartCanvas) {
                     semesterChartCanvas.hidden = true;
                 }
@@ -473,8 +574,8 @@
                     initSemesterHoursChart();
                 }
                 if (semesterHoursChart) {
-                    semesterHoursChart.data.labels = selectedStudents.map(student => student.name);
-                    semesterHoursChart.data.datasets[0].data = selectedStudents.map(student => Number(student.hours) || 0);
+                    semesterHoursChart.data.labels = ['Students'];
+                    semesterHoursChart.data.datasets[0].data = [totalStudents];
                     semesterHoursChart.update();
                 }
                 if (semesterChartCanvas) {
@@ -490,8 +591,8 @@
 
             if (studentsPeriodMeta) {
                 studentsPeriodMeta.textContent = selectedBucket
-                    ? `Ranking period: ${selectedBucket.label}`
-                    : 'Ranking period: All approved records';
+                    ? `Counting period: ${getCustomPeriodLabel(selectedBucket.label)}`
+                    : 'Counting period: All approved records';
             }
         }
 
@@ -517,7 +618,9 @@
             const selectedBucket = getSelectedSemesterBucket(config, true);
             const topCandidates = selectedBucket?.students || [];
             const topStudent = topCandidates[0];
-            const selectedPeriodLabel = selectedBucket?.label || 'all approved records';
+            const selectedPeriodLabel = selectedBucket
+                ? getCustomPeriodLabel(selectedBucket.label)
+                : 'all approved records';
             const topStudentLine = topStudent ? `${topStudent.name} (${topStudent.hours} hours)` : 'No students have completed hours yet for the selected semester.';
             const body = `Dear Dean of ${config.label},
 
@@ -601,7 +704,8 @@ Sanction Tracker Office`;
                 return;
             }
             const selectedLabel = semesterFilter?.selectedOptions?.[0]?.textContent?.trim() || 'semester';
-            const slug = selectedLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+            const customLabel = getCustomPeriodLabel(selectedLabel);
+            const slug = customLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
             const downloadLink = document.createElement('a');
             const filename = `semester-hours-${slug || 'data'}-${new Date().toISOString().slice(0, 10)}.png`;
             downloadLink.download = filename;
@@ -618,7 +722,9 @@ Sanction Tracker Office`;
             const rankingRows = selectedBucket?.allStudents?.length
                 ? selectedBucket.allStudents
                 : (selectedBucket?.students || []);
-            const periodLabel = selectedBucket?.label || 'No semester selected';
+            const periodLabel = selectedBucket
+                ? getCustomPeriodLabel(selectedBucket.label)
+                : 'No semester selected';
             const rankingHtml = rankingRows.length
                 ? `
                     <ol>
@@ -708,7 +814,7 @@ Sanction Tracker Office`;
                 return `<p class="muted">No students have completed service hours for the selected semester.</p>`;
             }
             return `
-                <h2>Reports by Service Hours (Semester)</h2>
+                <h2>Total Students by Semester</h2>
                 <ul>
                     ${topStudents
                         .map(
@@ -726,7 +832,7 @@ Sanction Tracker Office`;
             const content = `
                 <h1>Student Sanction Records - ${escapeHtml(config.label)}</h1>
                 <p class="muted">Sanction summary generated from the live dashboard data.</p>
-                <p class="muted">Top students period: ${escapeHtml(selectedBucket?.label || 'All approved records')}</p>
+                <p class="muted">Top students period: ${escapeHtml(selectedBucket ? getCustomPeriodLabel(selectedBucket.label) : 'All approved records')}</p>
                 ${buildSummaryTable(config.summary || {})}
                 ${buildTopStudentsSection(selectedStudents)}
             `;
@@ -740,7 +846,7 @@ Sanction Tracker Office`;
             const content = `
                 <h1>Student Sanction Records - ${escapeHtml(config.label)}</h1>
                 <p class="muted">After the print dialog opens, select “Save as PDF” to download this report.</p>
-                <p class="muted">Top students period: ${escapeHtml(selectedBucket?.label || 'All approved records')}</p>
+                <p class="muted">Top students period: ${escapeHtml(selectedBucket ? getCustomPeriodLabel(selectedBucket.label) : 'All approved records')}</p>
                 ${buildSummaryTable(config.summary || {})}
                 ${buildTopStudentsSection(selectedStudents)}
             `;
@@ -769,7 +875,7 @@ Sanction Tracker Office`;
             const topStudents = selectedBucket?.students || [];
             const metaRows = [
                 ['Department', config.label],
-                ['Top Students Period', selectedBucket?.label || 'No semester selected'],
+                ['Top Students Period', selectedBucket ? getCustomPeriodLabel(selectedBucket.label) : 'No semester selected'],
                 ['Required Hours', sanitizeText(summary.required)],
                 ['Completed Hours', sanitizeText(summary.completed)],
                 ['Remaining Hours', sanitizeText(summary.remaining)],
@@ -806,6 +912,29 @@ Sanction Tracker Office`;
         if (semesterFilter) {
             semesterFilter.addEventListener('change', () => {
                 renderTopStudents(currentChartConfig, false);
+                setSavedIndicator(false);
+            });
+        }
+        if (schoolYearInput) {
+            schoolYearInput.addEventListener('input', () => {
+                renderTopStudents(currentChartConfig, false);
+                setSavedIndicator(false);
+            });
+        }
+        if (savePeriodBtn) {
+            savePeriodBtn.addEventListener('click', () => {
+                saveSchoolYear(schoolYearInput?.value || '');
+                saveSemesterValue(semesterFilter?.value || '');
+                setPeriodEditMode(false);
+                setSavedIndicator(true);
+                renderTopStudents(currentChartConfig, false);
+            });
+        }
+        if (editPeriodBtn) {
+            editPeriodBtn.addEventListener('click', () => {
+                setPeriodEditMode(true);
+                setSavedIndicator(false);
+                schoolYearInput?.focus();
             });
         }
 
@@ -840,7 +969,19 @@ Sanction Tracker Office`;
         }
 
         document.addEventListener('DOMContentLoaded', function () {
+            const savedSchoolYear = loadSavedSchoolYear();
+            const savedSemester = loadSavedSemester();
+            if (schoolYearInput) {
+                schoolYearInput.value = savedSchoolYear;
+            }
             renderDepartmentMetrics();
+            if (savedSemester && hasSemesterOption(savedSemester)) {
+                semesterFilter.value = savedSemester;
+                renderTopStudents(currentChartConfig, false);
+            }
+            const hasSavedValues = Boolean(savedSchoolYear || savedSemester);
+            setPeriodEditMode(!hasSavedValues);
+            setSavedIndicator(hasSavedValues);
         });
 </script>
 {% endblock %}

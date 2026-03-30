@@ -1538,6 +1538,7 @@ def reports_management_view(request):
 
         top_students_by_semester = []
         semester_totals = {1: {}, 2: {}}
+        semester_student_ids = {1: set(), 2: set()}
         for submission in approved_qs.values(
             "student__id",
             "student__first_name",
@@ -1550,14 +1551,17 @@ def reports_management_view(request):
             if not submission_date:
                 continue
             sem = 1 if submission_date.month <= 6 else 2
-            student_id = submission["student__id"]
+            student_id = submission.get("student__id")
+            if student_id:
+                semester_student_ids[sem].add(student_id)
             display_name = (
                 f"{(submission.get('student__first_name') or '').strip()} {(submission.get('student__last_name') or '').strip()}".strip()
                 or submission.get("student__username")
                 or "Unknown Student"
             )
+            name_key = display_name.casefold()
             student_entry = semester_totals[sem].setdefault(
-                student_id,
+                name_key,
                 {"name": display_name, "hours": Decimal("0")},
             )
             student_entry["hours"] += Decimal(str(submission.get("hours") or 0))
@@ -1575,6 +1579,7 @@ def reports_management_view(request):
                 {
                     "key": f"sem{sem}",
                     "label": "1st Semester" if sem == 1 else "2nd Semester",
+                    "totalStudents": len(semester_student_ids[sem]),
                     "students": formatted_ranking[:5],
                     "allStudents": formatted_ranking,
                 }
