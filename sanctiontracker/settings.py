@@ -14,18 +14,27 @@ BASE_DIR_STR = str(BASE_DIR)
 
 SECRET_KEY = 'django-insecure-mya8d15%lauz4ii5qaonq!ssgj6@he*o!gi+4(-6ajpuapikd9'
 DEBUG = True
+
 ALLOWED_HOSTS = [
+    "my-jmc-pod.duckdns.org",
     "jmcedu.duckdns.org",
+    "72.62.197.37",
     "143.44.184.72",
     "localhost",
     "127.0.0.1",
+    "web",
+    "web:8000",
     ".trycloudflare.com",
 ]
+
 CSRF_TRUSTED_ORIGINS = [
+    "https://my-jmc-pod.duckdns.org",
+    "http://my-jmc-pod.duckdns.org",
     "https://jmcedu.duckdns.org",
     "http://jmcedu.duckdns.org",
     "https://*.trycloudflare.com",
 ]
+
 
 extra_allowed_hosts = [
     host.strip()

@@ -1,0 +1,36 @@
+name: Deploy Hostinger VPS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USER }}
+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          port: ${{ secrets.HOSTINGER_PORT || 22 }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd "${{ secrets.VPS_PROJECT_PATH }}"
+            git fetch --all --prune
+            git checkout main
+            git pull --ff-only origin main
+
+            if [ -n "${{ secrets.VPS_DOMAIN }}" ] && [ -n "${{ secrets.VPS_HEALTHCHECK_URL }}" ]; then
+              DOMAIN_OVERRIDE="${{ secrets.VPS_DOMAIN }}" HEALTHCHECK_URL="${{ secrets.VPS_HEALTHCHECK_URL }}" /bin/bash ./scripts/deploy.sh "$PWD"
+            elif [ -n "${{ secrets.VPS_DOMAIN }}" ]; then
+              DOMAIN_OVERRIDE="${{ secrets.VPS_DOMAIN }}" /bin/bash ./scripts/deploy.sh "$PWD"
+            elif [ -n "${{ secrets.VPS_HEALTHCHECK_URL }}" ]; then
+              HEALTHCHECK_URL="${{ secrets.VPS_HEALTHCHECK_URL }}" /bin/bash ./scripts/deploy.sh "$PWD"
+            else
+              /bin/bash ./scripts/deploy.sh "$PWD"
+            fi

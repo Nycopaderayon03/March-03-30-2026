@@ -22,6 +22,7 @@ PY
 fi
 
 python Services/manage.py migrate --noinput
+python Services/manage.py create_admin
 python Services/manage.py collectstatic --noinput
 
 exec "$@"

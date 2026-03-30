@@ -3,32 +3,33 @@ from authentication.models import User
 
 
 class Command(BaseCommand):
-    help = 'Creates default admin and student users'
+    help = "Ensures a default admin user exists with requested credentials"
 
     def handle(self, *args, **options):
-        if not User.objects.filter(username='admin').exists():
-            User.objects.create_superuser(
-                username='admin',
-                email='admin@podoffice.edu',
-                password='admin123',
-                role='admin',
-                first_name='System',
-                last_name='Administrator'
-            )
-            self.stdout.write(self.style.SUCCESS('Default admin user created successfully!'))
-        else:
-            self.stdout.write(self.style.WARNING('Admin user already exists.'))
+        admin_defaults = {
+            "email": "admin@podoffice.edu",
+            "role": "admin",
+            "status": "active",
+            "is_staff": True,
+            "is_superuser": True,
+            "first_name": "System",
+            "last_name": "Administrator",
+        }
 
-        if not User.objects.filter(username='student').exists():
-            User.objects.create_user(
-                username='student',
-                email='student@podoffice.edu',
-                password='student123',
-                role='student',
-                status='active',
-                first_name='Sample',
-                last_name='Student'
-            )
-            self.stdout.write(self.style.SUCCESS('Default student user created successfully!'))
+        admin_user, created = User.objects.get_or_create(
+            username="admin",
+            defaults=admin_defaults,
+        )
+
+        if not created:
+            for field_name, field_value in admin_defaults.items():
+                setattr(admin_user, field_name, field_value)
+
+        # Enforce the requested credential for the default admin account.
+        admin_user.set_password("admin123")
+        admin_user.save()
+
+        if created:
+            self.stdout.write(self.style.SUCCESS("Default admin user created successfully."))
         else:
-            self.stdout.write(self.style.WARNING('Student user already exists.'))
+            self.stdout.write(self.style.WARNING("Admin user already existed and was updated."))
