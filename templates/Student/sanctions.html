@@ -13,6 +13,10 @@
             <div>
                 <h3>{{ sanction.title }}</h3>
                 <p class="issued-text">Issued: {{ sanction.issued }}</p>
+                <p class="issued-text">
+                    Gravity:
+                    <span class="gravity-badge {{ sanction.gravity_class }}">{{ sanction.gravity_label }}</span>
+                </p>
                 <p class="due-text">
                     Due: {{ sanction.due_date|date:"F j, Y" }}
                     {% if sanction.due_status %}

@@ -253,12 +253,22 @@
 
             if (btnProgress) {
                 btnProgress.addEventListener('click', function () {
-                    persistConcernStatus('progress').catch(error => alert(error.message));
+                    persistConcernStatus('progress')
+                        .then(() => {
+                            closeModal();
+                            window.location.reload();
+                        })
+                        .catch(error => alert(error.message));
                 });
             }
             if (btnResolved) {
                 btnResolved.addEventListener('click', function () {
-                    persistConcernStatus('resolved').catch(error => alert(error.message));
+                    persistConcernStatus('resolved')
+                        .then(() => {
+                            closeModal();
+                            window.location.reload();
+                        })
+                        .catch(error => alert(error.message));
                 });
             }
             for (var j = 0; j < archiveButtons.length; j++) {

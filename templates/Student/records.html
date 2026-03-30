@@ -26,6 +26,7 @@
                     <tr>
                         <th>Violation</th>
                         <th>Date Issued</th>
+                        <th>Gravity</th>
                         <th>Hours Required</th>
                         <th>Status</th>
                     </tr>
@@ -35,6 +36,7 @@
                     <tr>
                         <td>{{ sanction.violation }}</td>
                         <td>{{ sanction.issued }}</td>
+                        <td><span class="gravity-badge {{ sanction.gravity_class }}">{{ sanction.gravity_label }}</span></td>
                         <td>{{ sanction.hours_required }}</td>
                         <td><span class="status-pill {{ sanction.status_class }}">{{ sanction.status_label }}</span></td>
                     </tr>

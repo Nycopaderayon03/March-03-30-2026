@@ -51,7 +51,7 @@
                             <i class="material-icons">search</i>
                             <input type="text"
                                    name="search"
-                                   placeholder="Search by ID number..."
+                                   placeholder="Search by Student ID..."
                                    value="{{ search_query }}">
                         </div>
                     </form>
@@ -63,7 +63,7 @@
                         <thead>
                             <tr>
                                 <th>POD Case No.</th>
-                                <th>ID No.</th>
+                                <th>Student ID</th>
                                 <th>Name</th>
                                 <th>Email</th>
                                 <th>Status</th>
@@ -73,21 +73,24 @@
                         <tbody>
                             {% for student in students %}
                             <tr>
-                                <td><strong>{{ student.pod_case_no }}</strong></td>
-                                <td><strong>{{ student.id }}</strong></td>
-                                <td>{{ student.get_full_name|default:student.username }}</td>
-                                <td>{{ student.email }}</td>
-                                <td>
+                                <td class="pod-case-cell">
+                                    <strong class="pod-case-value">{{ student.pod_case_no }}</strong>
+                                    <small class="pod-case-meta">{{ student.pod_case_date }}</small>
+                                </td>
+                                <td><strong>{{ student.display_student_id }}</strong></td>
+                                <td class="name-cell">{{ student.get_full_name|default:student.username }}</td>
+                                <td class="email-cell">{{ student.email }}</td>
+                                <td class="status-cell">
                                     <span class="status-badge {{ student.directory_status_class }}">{{ student.directory_status_label }}</span>
                                 </td>
-                                <td>
+                                <td class="actions-cell">
                                     <div class="action-buttons">
                                         <button type="button" class="btn btn-view" data-student-url="{% url 'student_detail' student.id %}">
-                                            <i class="material-icons" style="font-size: 16px; vertical-align: middle;">visibility</i>
+                                            <i class="material-icons action-icon">visibility</i>
                                             View
                                         </button>
                                         <a href="{% url 'sanction_management' %}?student_id={{ student.id }}" class="btn btn-add" role="button">
-                                            <i class="material-icons" style="font-size: 16px; vertical-align: middle;">add</i>
+                                            <i class="material-icons action-icon">add</i>
                                             Add Sanction
                                         </a>
                                     </div>

@@ -79,32 +79,27 @@
                     <div class="report-card students-card">
                         <div class="report-title">
                             <i class="material-icons">star</i>
-                            Reports by Service Hours (Yearly by Semester)
+                            Reports by Service Hours (Semester)
                         </div>
-                        <p class="report-description">View top students by selected yearly semester period.</p>
                         <div class="chart-controls">
                             <label for="semester-filter">Semester</label>
                             <select id="semester-filter">
                                 <option value="all">Loading...</option>
                             </select>
                         </div>
-                        <ul class="top-students-list">
-                            <li class="student-item">
-                                <div class="student-info">
-                                    <span class="student-rank">-</span>
-                                    <span class="student-name">Loading...</span>
-                                </div>
-                                <div class="student-progress">
-                                    <div class="student-progress-fill" style="width: 0;"></div>
-                                </div>
-                                <span class="student-hours">0 hrs</span>
-                            </li>
-                        </ul>
+                        <div class="chart-wrapper semester-chart-wrapper">
+                            <canvas id="semester-hours-chart" height="220"></canvas>
+                        </div>
+                        <p id="semester-empty" class="report-description" hidden>No semester data available.</p>
                         <p id="students-period-meta" class="report-description">Loading ranking period...</p>
                         <div class="card-footer">
-                            <button class="btn btn-outline" type="button" onclick="viewAllStudents()">
-                                <i class="material-icons">list</i>
-                                View All
+                            <button class="btn btn-secondary" type="button" onclick="printSemesterChart()">
+                                <i class="material-icons">print</i>
+                                Print
+                            </button>
+                            <button class="btn btn-primary" type="button" onclick="exportSemesterChart()">
+                                <i class="material-icons">download</i>
+                                Export
                             </button>
                         </div>
                     </div>
@@ -193,11 +188,12 @@
         const departmentSelect = document.getElementById('reports-department');
         const monthFilter = document.getElementById('month-filter');
         const chartCanvas = document.getElementById('sanctions-chart');
+        const semesterChartCanvas = document.getElementById('semester-hours-chart');
         const chartFilterCount = document.getElementById('chart-filter-count');
         const chartFilterPeriod = document.getElementById('chart-filter-period');
-        const topStudentsList = document.querySelector('.top-students-list');
         const semesterFilter = document.getElementById('semester-filter');
         const studentsPeriodMeta = document.getElementById('students-period-meta');
+        const semesterEmpty = document.getElementById('semester-empty');
         const noteEl = document.getElementById('reports-note');
         const modal = document.getElementById('report-modal');
         const emailBody = document.getElementById('report-email-body');
@@ -207,6 +203,7 @@
         const closeModalBtn = document.getElementById('close-report-modal');
 
         let sanctionsChart = null;
+        let semesterHoursChart = null;
         let currentChartConfig = reportsData.all || null;
         let activeMonthSelection = 'all';
 
@@ -229,6 +226,69 @@
             highlight: getCssColor('--secondary', '#f4b400'),
             muted: 'rgba(76, 29, 153, 0.25)',
         };
+
+        function initSemesterHoursChart() {
+            if (!semesterChartCanvas || typeof Chart === 'undefined') {
+                return;
+            }
+            const ctx = semesterChartCanvas.getContext('2d');
+            semesterHoursChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Approved Hours',
+                            data: [],
+                            backgroundColor: chartTheme.base,
+                            borderRadius: 10,
+                            borderSkipped: false,
+                            maxBarThickness: 36,
+                        },
+                    ],
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0,
+                                color: 'rgba(59, 47, 87, 0.8)',
+                            },
+                            grid: {
+                                color: 'rgba(76, 29, 153, 0.12)',
+                            },
+                        },
+                        x: {
+                            grid: {
+                                display: false,
+                            },
+                            ticks: {
+                                color: 'rgba(59, 47, 87, 0.9)',
+                                callback(value) {
+                                    const label = this.getLabelForValue(value) || '';
+                                    return label.length > 12 ? `${label.slice(0, 12)}...` : label;
+                                },
+                            },
+                        },
+                    },
+                    plugins: {
+                        legend: {
+                            display: false,
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label(context) {
+                                    const value = context.parsed.y ?? context.parsed ?? 0;
+                                    return `${value} hour(s)`;
+                                },
+                            },
+                        },
+                    },
+                },
+            });
+        }
 
         function initSanctionsChart() {
             if (!chartCanvas || typeof Chart === 'undefined') {
@@ -371,7 +431,7 @@
         }
 
         function renderTopStudents(config, resetSemesterSelection = false) {
-            if (!config || !topStudentsList) {
+            if (!config) {
                 return;
             }
 
@@ -399,21 +459,33 @@
             const selectedStudents = selectedBucket?.students || [];
 
             if (!selectedStudents.length) {
-                topStudentsList.innerHTML = '<li class="student-item"><div class="student-info"><span class="student-name">No students have recorded hours for this semester yet.</span></div></li>';
+                if (semesterChartCanvas) {
+                    semesterChartCanvas.hidden = true;
+                }
+                if (semesterEmpty) {
+                    semesterEmpty.hidden = false;
+                }
+                if (studentsPeriodMeta) {
+                    studentsPeriodMeta.hidden = true;
+                }
             } else {
-                const maxHours = Math.max(...selectedStudents.map(s => Number(s.hours) || 0), 1);
-                topStudentsList.innerHTML = selectedStudents.map((student, index) => `
-                    <li class="student-item">
-                        <div class="student-info">
-                            <span class="student-rank">${index + 1}</span>
-                            <span class="student-name">${escapeHtml(student.name)}</span>
-                        </div>
-                        <div class="student-progress">
-                            <div class="student-progress-fill" style="width:${Math.round(((Number(student.hours) || 0) / maxHours) * 100)}%"></div>
-                        </div>
-                        <span class="student-hours">${student.hours} hrs</span>
-                    </li>
-                `).join('');
+                if (!semesterHoursChart) {
+                    initSemesterHoursChart();
+                }
+                if (semesterHoursChart) {
+                    semesterHoursChart.data.labels = selectedStudents.map(student => student.name);
+                    semesterHoursChart.data.datasets[0].data = selectedStudents.map(student => Number(student.hours) || 0);
+                    semesterHoursChart.update();
+                }
+                if (semesterChartCanvas) {
+                    semesterChartCanvas.hidden = false;
+                }
+                if (semesterEmpty) {
+                    semesterEmpty.hidden = true;
+                }
+                if (studentsPeriodMeta) {
+                    studentsPeriodMeta.hidden = false;
+                }
             }
 
             if (studentsPeriodMeta) {
@@ -494,6 +566,46 @@ Sanction Tracker Office`;
             const filename = `sanctions-chart-${new Date().toISOString().slice(0, 10)}.png`;
             downloadLink.download = filename;
             downloadLink.href = chartCanvas.toDataURL('image/png');
+            downloadLink.style.display = 'none';
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+        }
+
+        function printSemesterChart() {
+            if (!semesterHoursChart || !semesterChartCanvas || semesterChartCanvas.hidden) {
+                alert('No semester chart data to print yet.');
+                return;
+            }
+            const imageUrl = semesterChartCanvas.toDataURL('image/png');
+            const printWindow = window.open('', '_blank', 'width=900,height=700');
+            if (!printWindow) {
+                alert('Pop-up blocked. Please enable pop-ups to print the chart.');
+                return;
+            }
+            printWindow.document.write('<html><head><title>Semester Service Hours</title></head><body style="margin:0">');
+            printWindow.document.write(
+                `<img src="${imageUrl}" style="width:100%; display:block;" alt="Semester service hours chart">`
+            );
+            printWindow.document.write('</body></html>');
+            printWindow.document.close();
+            printWindow.focus();
+            printWindow.onload = () => {
+                printWindow.print();
+            };
+        }
+
+        function exportSemesterChart() {
+            if (!semesterHoursChart || !semesterChartCanvas || semesterChartCanvas.hidden) {
+                alert('No semester chart data to export yet.');
+                return;
+            }
+            const selectedLabel = semesterFilter?.selectedOptions?.[0]?.textContent?.trim() || 'semester';
+            const slug = selectedLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+            const downloadLink = document.createElement('a');
+            const filename = `semester-hours-${slug || 'data'}-${new Date().toISOString().slice(0, 10)}.png`;
+            downloadLink.download = filename;
+            downloadLink.href = semesterChartCanvas.toDataURL('image/png');
             downloadLink.style.display = 'none';
             document.body.appendChild(downloadLink);
             downloadLink.click();
@@ -596,7 +708,7 @@ Sanction Tracker Office`;
                 return `<p class="muted">No students have completed service hours for the selected semester.</p>`;
             }
             return `
-                <h2>Reports by Service Hours (Yearly by Semester)</h2>
+                <h2>Reports by Service Hours (Semester)</h2>
                 <ul>
                     ${topStudents
                         .map(

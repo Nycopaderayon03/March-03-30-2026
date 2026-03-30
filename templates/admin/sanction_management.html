@@ -80,7 +80,7 @@
                                     <select id="existing-violation" name="violation" class="violation-field" required>
                                         <option value="">Select a violation...</option>
                                         {% for sanction_type in sanction_types %}
-                                        <option value="{{ sanction_type.description }}" data-hours="{{ sanction_type.hours }}">{{ sanction_type.description }}</option>
+                                        <option value="{{ sanction_type.description }}">{{ sanction_type.description }}</option>
                                         {% endfor %}
                                     </select>
                                 </div>
@@ -158,7 +158,7 @@
                                     <select id="new-violation" name="new_violation" class="violation-field" required>
                                         <option value="">Select a violation...</option>
                                         {% for sanction_type in sanction_types %}
-                                        <option value="{{ sanction_type.description }}" data-hours="{{ sanction_type.hours }}">{{ sanction_type.description }}</option>
+                                        <option value="{{ sanction_type.description }}">{{ sanction_type.description }}</option>
                                         {% endfor %}
                                     </select>
                                 </div>
@@ -201,23 +201,17 @@
                             <form method="POST" action="{% url 'add_sanction_type' %}">
                                 {% csrf_token %}
                                 <div>
-                                    <label class="form-label" for="sanction_description">Violation Description</label>
+                                    <label class="form-label" for="sanction_description">Violation</label>
                                     <input type="text" id="sanction_description" name="description" placeholder="e.g. Public Disturbance" required>
                                 </div>
-                                <div class="form-grid-two">
-                                    <div>
-                                        <label class="form-label" for="sanction_hours">Required Hours</label>
-                                        <input type="number" id="sanction_hours" name="required_hours" min="1" placeholder="e.g. 8" required>
-                                    </div>
-                                    <div>
-                                        <label class="form-label" for="sanction_gravity">Gravity</label>
-                                        <select id="sanction_gravity" name="gravity">
-                                            <option value="Minor">Minor</option>
-                                            <option value="Less Grave">Less Grave</option>
-                                            <option value="Grave">Grave</option>
-                                            <option value="Restorative Justice">Restorative Justice</option>
-                                        </select>
-                                    </div>
+                                <div>
+                                    <label class="form-label" for="sanction_gravity">Gravity</label>
+                                    <select id="sanction_gravity" name="gravity">
+                                        <option value="Minor">Minor</option>
+                                        <option value="Less Grave">Less Grave</option>
+                                        <option value="Grave">Grave</option>
+                                        <option value="Restorative Justice">Restorative Justice</option>
+                                    </select>
                                 </div>
                                 <button type="submit" class="btn btn-primary">Add Sanction Type</button>
                             </form>
@@ -234,8 +228,7 @@
                                 <table class="sanction-types-table">
                                     <thead>
                                         <tr>
-                                            <th>Description</th>
-                                            <th>Hours</th>
+                                            <th>Violation</th>
                                             <th>Gravity</th>
                                             <th>Action</th>
                                         </tr>
@@ -244,7 +237,6 @@
                                         {% for sanction_type in sanction_types %}
                                         <tr>
                                             <td>{{ sanction_type.description }}</td>
-                                            <td>{{ sanction_type.hours }}</td>
                                             <td>
                                                 <span class="gravity-badge gravity-{{ sanction_type.gravity_class }}">{{ sanction_type.gravity }}</span>
                                             </td>
@@ -255,7 +247,6 @@
                                                         class="icon-button edit-type-btn"
                                                         data-edit-url="{% url 'edit_sanction_type' sanction_type.id %}"
                                                         data-description="{{ sanction_type.description|escape }}"
-                                                        data-hours="{{ sanction_type.hours }}"
                                                         data-gravity="{{ sanction_type.gravity }}"
                                                         aria-label="Edit {{ sanction_type.description }}"
                                                     >
@@ -272,7 +263,7 @@
                                         </tr>
                                         {% empty %}
                                         <tr>
-                                            <td colspan="4" style="text-align: center; padding: 32px; color: var(--gray);">
+                                            <td colspan="3" style="text-align: center; padding: 32px; color: var(--gray);">
                                                 No sanction types defined yet.
                                             </td>
                                         </tr>
@@ -307,16 +298,16 @@
                         aria-label="Search sanction history by violation or ID number"
                         autocomplete="off"
                     >
-                    <input
-                        id="history-course-input"
-                        type="search"
+                    <select
+                        id="history-status-input"
                         class="history-search-input"
-                        name="history_course"
-                        value="{{ history_course }}"
-                        placeholder="Search by course..."
-                        aria-label="Search sanction history by course"
-                        autocomplete="off"
+                        name="history_status"
+                        aria-label="Filter sanction history by status"
                     >
+                        <option value="">All statuses</option>
+                        <option value="active" {% if history_status == "active" %}selected{% endif %}>Active</option>
+                        <option value="completed" {% if history_status == "completed" %}selected{% endif %}>Completed</option>
+                    </select>
                 </form>
                 <div class="history-table-wrapper">
                     <table class="history-table">
@@ -376,20 +367,14 @@
                         <label class="form-label" for="modal-description">Violation Description</label>
                         <input type="text" id="modal-description" name="description" required>
                     </div>
-                    <div class="form-grid-two">
-                        <div>
-                            <label class="form-label" for="modal-hours">Required Hours</label>
-                            <input type="number" id="modal-hours" name="required_hours" min="1" required>
-                        </div>
-                        <div>
-                            <label class="form-label" for="modal-gravity">Gravity</label>
-                            <select id="modal-gravity" name="gravity">
-                                <option value="Minor">Minor</option>
-                                <option value="Less Grave">Less Grave</option>
-                                <option value="Grave">Grave</option>
-                                <option value="Restorative Justice">Restorative Justice</option>
-                            </select>
-                        </div>
+                    <div>
+                        <label class="form-label" for="modal-gravity">Gravity</label>
+                        <select id="modal-gravity" name="gravity">
+                            <option value="Minor">Minor</option>
+                            <option value="Less Grave">Less Grave</option>
+                            <option value="Grave">Grave</option>
+                            <option value="Restorative Justice">Restorative Justice</option>
+                        </select>
                     </div>
                     <div class="form-controls">
                         <button type="button" class="btn btn-secondary" id="cancel-edit">Cancel</button>
@@ -485,12 +470,10 @@
             if (!modal) return;
             const form = document.getElementById('edit-sanction-form');
             const descriptionInput = document.getElementById('modal-description');
-            const hoursInput = document.getElementById('modal-hours');
             const gravitySelect = document.getElementById('modal-gravity');
 
             form.action = button.dataset.editUrl || '';
             descriptionInput.value = button.dataset.description || '';
-            hoursInput.value = button.dataset.hours || '';
             gravitySelect.value = button.dataset.gravity || 'Minor';
 
             modal.classList.add('is-open');
@@ -547,6 +530,11 @@
                         form.submit();
                     }, 350);
                 });
+                input.addEventListener('change', function() {
+                    clearTimeout(timer);
+                    persistScrollState();
+                    form.submit();
+                });
             });
 
             if (sessionStorage.getItem(RESTORE_KEY) === '1') {
@@ -557,8 +545,10 @@
                     window.scrollTo(0, Number.isFinite(storedY) ? storedY : 0);
                     const activeInput = inputs.find((field) => (field.value || '').trim()) || inputs[0];
                     activeInput.focus();
-                    const end = activeInput.value.length;
-                    activeInput.setSelectionRange(end, end);
+                    if (typeof activeInput.setSelectionRange === 'function') {
+                        const end = activeInput.value.length;
+                        activeInput.setSelectionRange(end, end);
+                    }
                 });
             }
         }

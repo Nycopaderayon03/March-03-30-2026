@@ -21,7 +21,7 @@ def admin_notifications(request):
         .order_by("-created_at")
     )
     open_concerns_qs = (
-        Concern.objects.exclude(status="archived")
+        Concern.objects.filter(status__in=["new", "progress"])
         .select_related("student")
         .order_by("-created_at")
     )

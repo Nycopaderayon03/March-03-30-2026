@@ -183,13 +183,16 @@ def sync_sanctions_for_queryset(queryset):
     return sanctions
 
 
-def format_pod_case_no(student, sequence_no):
+def format_pod_case_parts(student, sequence_no):
     joined_at = getattr(student, "date_joined", None)
     if joined_at:
         joined_date = timezone.localtime(joined_at).date() if timezone.is_aware(joined_at) else joined_at.date()
     else:
         joined_date = timezone.localdate()
-    return f"{joined_date.year}/{joined_date.strftime('%d')}/{int(sequence_no):04d}"
+    return {
+        "pod_case_no": f"{int(sequence_no):04d}",
+        "date": joined_date.strftime("%Y-%m-%d"),
+    }
 
 
 def attempt_student_password_change(request, current_password, new_password, confirm_password):
@@ -252,7 +255,7 @@ def serialize_sanction_for_admin(sanction):
     return {
         "id": sanction.id,
         "student_name": sanction.student_name,
-        "student_id": sanction.student_id,
+        "student_id": sanction.student.identifier,
         "student_course": sanction.student.course_year or "",
         "violation": sanction.violation,
         "required_hours": sanction.required_hours,
@@ -298,6 +301,7 @@ def get_recent_activity_events(limit=5):
                 "details": f"{concern.student.display_name} - {concern.subject} ({concern.status_label})",
                 "time": timezone.localtime(concern.updated_at).strftime("%b %d, %I:%M %p"),
                 "timestamp": concern.updated_at,
+                "timestamp_iso": concern.updated_at.isoformat(),
                 "icon": "forum",
             }
         )
@@ -384,7 +388,7 @@ def sanction_management_view(request):
 
     sanction_types = list(SanctionType.objects.all())
     history_search = (request.GET.get("history_search") or "").strip()
-    history_course = (request.GET.get("history_course") or "").strip()
+    history_status = (request.GET.get("history_status") or "").strip().lower()
     sanctions_qs = Sanction.objects.select_related("student", "sanction_type").all()
     if history_search:
         sanction_filters = (
@@ -396,8 +400,8 @@ def sanction_management_view(request):
             parsed_id = int(history_search)
             sanction_filters |= Q(id=parsed_id) | Q(student__id=parsed_id)
         sanctions_qs = sanctions_qs.filter(sanction_filters)
-    if history_course:
-        sanctions_qs = sanctions_qs.filter(student__course_year__icontains=history_course)
+    if history_status in {"active", "completed"}:
+        sanctions_qs = sanctions_qs.filter(status=history_status)
     sanctions = [serialize_sanction_for_admin(sanction) for sanction in sync_sanctions_for_queryset(sanctions_qs)]
     students = [
         {
@@ -425,7 +429,7 @@ def sanction_management_view(request):
         "sanction_types": sanction_types,
         "selected_student": selected_student,
         "history_search": history_search,
-        "history_course": history_course,
+        "history_status": history_status,
         "department_choices": DEPARTMENT_CHOICES,
     }
     return render(request, "admin/sanction_management.html", context)
@@ -443,11 +447,9 @@ def add_sanction_view(request):
             student = User.objects.get(id=student_id, role="student")
             sanction_type_description = (request.POST.get("violation") or "").strip()
             sanction_type = SanctionType.objects.filter(description__iexact=sanction_type_description).first()
-            default_hours = sanction_type.hours if sanction_type else None
             required_hours = parse_non_negative_int(
                 request.POST.get("required_hours"),
                 "Required hours",
-                default=default_hours,
             )
             if required_hours <= 0:
                 raise ValueError("Required hours must be greater than zero.")
@@ -507,14 +509,11 @@ def add_sanction_type_view(request):
             if SanctionType.objects.filter(description__iexact=description).exists():
                 raise ValueError("That sanction type already exists.")
 
-            required_hours = parse_non_negative_int(request.POST.get("required_hours"), "Required hours")
-            if required_hours <= 0:
-                raise ValueError("Required hours must be greater than zero.")
             gravity = normalize_gravity(request.POST.get("gravity"))
-            SanctionType.objects.create(description=description, hours=required_hours, gravity=gravity)
+            SanctionType.objects.create(description=description, hours=0, gravity=gravity)
             messages.success(
                 request,
-                f'Sanction type "{description}" requiring {required_hours} hour(s) ({gravity}) added.',
+                f'Sanction type "{description}" ({gravity}) added.',
             )
         except ValueError as exc:
             messages.error(request, str(exc))
@@ -539,12 +538,7 @@ def edit_sanction_type_view(request, sanction_type_id):
             if duplicate_exists:
                 raise ValueError("Another sanction type already uses that description.")
 
-            required_hours = parse_non_negative_int(request.POST.get("required_hours"), "Required hours")
-            if required_hours <= 0:
-                raise ValueError("Required hours must be greater than zero.")
-
             sanction_type.description = description
-            sanction_type.hours = required_hours
             sanction_type.gravity = normalize_gravity(request.POST.get("gravity"))
             sanction_type.save()
             messages.success(request, f'Sanction type "{description}" updated successfully.')
@@ -588,11 +582,9 @@ def add_new_student_with_sanction_view(request):
             violation = (request.POST.get("new_violation") or "").strip()
             note = (request.POST.get("new_note") or "").strip()
             sanction_type = SanctionType.objects.filter(description__iexact=violation).first()
-            default_hours = sanction_type.hours if sanction_type else None
             required_hours = parse_non_negative_int(
                 request.POST.get("new_required_hours"),
                 "Required hours",
-                default=default_hours,
             )
             if required_hours <= 0:
                 raise ValueError("Required hours must be greater than zero.")
@@ -732,10 +724,8 @@ def student_management_view(request):
 
     search_query = request.GET.get("search", "").strip()
     if search_query:
-        if search_query.isdigit():
-            students = students.filter(id=int(search_query)).order_by("id")
-        else:
-            students = students.none()
+        # Search by the student's actual Student ID (student_code), not DB row id.
+        students = students.filter(student_code__icontains=search_query).order_by("id")
 
     # Keep sanction statuses aligned with approved service-hour validations so
     # dashboard counters and row badges are always accurate.
@@ -755,7 +745,10 @@ def student_management_view(request):
     students_with_sanctions = len(active_sanctions_by_student)
     students = list(students)
     for index, student in enumerate(students, start=1):
-        student.pod_case_no = format_pod_case_no(student, index)
+        pod_case_parts = format_pod_case_parts(student, index)
+        student.pod_case_no = pod_case_parts["pod_case_no"]
+        student.pod_case_date = pod_case_parts["date"]
+        student.display_student_id = student.student_code or student.identifier
         student.active_sanction_count = active_sanctions_by_student.get(student.id, 0)
         if not student.is_active:
             student.directory_status_label = "Inactive"
@@ -1173,7 +1166,7 @@ def student_sanctions_view(request):
     sync_sanctions_for_queryset(Sanction.objects.filter(student=request.user))
     sanctions = []
     today = timezone.localdate()
-    for sanction in Sanction.objects.filter(student=request.user):
+    for sanction in Sanction.objects.filter(student=request.user).select_related("sanction_type"):
         due_status = ""
         due_status_class = ""
         approved_submissions_qs = ServiceHourSubmission.objects.filter(
@@ -1221,6 +1214,8 @@ def student_sanctions_view(request):
         status_class = "status-completed" if progress_percentage >= 100 else "status-active"
         if not should_display:
             continue
+        gravity_label = sanction.sanction_type.gravity if sanction.sanction_type else "Unspecified"
+        gravity_class = f"gravity-{gravity_label.lower().replace(' ', '-')}" if sanction.sanction_type else "gravity-minor"
         sanctions.append(
             {
                 "id": sanction.id,
@@ -1235,6 +1230,8 @@ def student_sanctions_view(request):
                 "due_status": due_status,
                 "due_status_class": due_status_class,
                 "due_date": sanction.due_date,
+                "gravity_label": gravity_label,
+                "gravity_class": gravity_class,
             }
         )
 
@@ -1352,10 +1349,16 @@ def student_records_view(request):
             "violation": sanction.violation,
             "issued": sanction.date_issued.isoformat(),
             "hours_required": sanction.required_hours,
+            "gravity_label": sanction.sanction_type.gravity if sanction.sanction_type else "Unspecified",
+            "gravity_class": (
+                f"gravity-{sanction.sanction_type.gravity.lower().replace(' ', '-')}"
+                if sanction.sanction_type
+                else "gravity-minor"
+            ),
             "status_label": sanction.status_label,
             "status_class": "status-completed" if sanction.status == "completed" else "status-active",
         }
-        for sanction in Sanction.objects.filter(student=request.user)
+        for sanction in Sanction.objects.filter(student=request.user).select_related("sanction_type")
     ]
 
     community_hours = [
@@ -1534,8 +1537,7 @@ def reports_management_view(request):
         ]
 
         top_students_by_semester = []
-        semester_keys = []
-        semester_totals = {}
+        semester_totals = {1: {}, 2: {}}
         for submission in approved_qs.values(
             "student__id",
             "student__first_name",
@@ -1547,27 +1549,22 @@ def reports_management_view(request):
             submission_date = submission.get("date")
             if not submission_date:
                 continue
-            year = submission_date.year
             sem = 1 if submission_date.month <= 6 else 2
-            bucket_key = (year, sem)
-            if bucket_key not in semester_totals:
-                semester_totals[bucket_key] = {}
-                semester_keys.append(bucket_key)
             student_id = submission["student__id"]
             display_name = (
                 f"{(submission.get('student__first_name') or '').strip()} {(submission.get('student__last_name') or '').strip()}".strip()
                 or submission.get("student__username")
                 or "Unknown Student"
             )
-            student_entry = semester_totals[bucket_key].setdefault(
+            student_entry = semester_totals[sem].setdefault(
                 student_id,
                 {"name": display_name, "hours": Decimal("0")},
             )
             student_entry["hours"] += Decimal(str(submission.get("hours") or 0))
 
-        for year, sem in sorted(semester_keys, reverse=True):
+        for sem in (1, 2):
             ranking = sorted(
-                semester_totals[(year, sem)].values(),
+                semester_totals[sem].values(),
                 key=lambda item: (-item["hours"], item["name"].lower()),
             )
             formatted_ranking = [
@@ -1576,8 +1573,8 @@ def reports_management_view(request):
             ]
             top_students_by_semester.append(
                 {
-                    "key": f"{year}-sem{sem}",
-                    "label": f"{year} - Sem {sem}",
+                    "key": f"sem{sem}",
+                    "label": "1st Semester" if sem == 1 else "2nd Semester",
                     "students": formatted_ranking[:5],
                     "allStudents": formatted_ranking,
                 }
