@@ -1,7 +1,7 @@
 services:
   db:
     image: postgres:16-alpine
-    container_name: sanctiontracker-db
+    container_name: st-db
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${DB_NAME:-sanction_tracker_db}
@@ -19,7 +19,7 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    container_name: sanctiontracker-web
+    container_name: st-web
     restart: unless-stopped
     command: gunicorn sanctiontracker.wsgi:application --bind 0.0.0.0:8000
     expose:
@@ -52,7 +52,7 @@ services:
 
   nginx:
     image: nginx:alpine
-    container_name: sanctiontracker-nginx
+    container_name: st-nginx
     restart: unless-stopped
     depends_on:
       - web
@@ -71,7 +71,7 @@ services:
 
   certbot:
     image: certbot/certbot:latest
-    container_name: sanctiontracker-certbot
+    container_name: st-certbot
     restart: unless-stopped
     volumes:
       - certbot_www:/var/www/certbot
@@ -83,7 +83,7 @@ services:
 
   cloudflared:
     image: cloudflare/cloudflared:latest
-    container_name: sanctiontracker-cloudflared
+    container_name: st-cloudflared
     restart: unless-stopped
     profiles: ["tunnel"]
     depends_on:
@@ -92,7 +92,7 @@ services:
 
   pgadmin:
     image: dpage/pgadmin4:8
-    container_name: sanctiontracker-pgadmin
+    container_name: st-pgadmin
     restart: unless-stopped
     profiles: ["pgadmin"]
     environment:

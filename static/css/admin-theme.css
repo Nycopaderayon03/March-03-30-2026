@@ -1649,6 +1649,9 @@ body {
     gap: 18px;
     box-shadow: var(--card-shadow);
 }
+.reports-hero > div {
+    min-width: 0;
+}
 .eyebrow {
     text-transform: uppercase;
     letter-spacing: 0.3em;
@@ -1662,6 +1665,8 @@ body {
     flex-direction: column;
     gap: 6px;
     min-width: 220px;
+    width: min(100%, 360px);
+    max-width: 100%;
 }
 .reports-filter label {
     font-size: 12px;
@@ -1677,6 +1682,10 @@ body {
     font-size: 15px;
     font-family: inherit;
     color: var(--gray-dark);
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
 }
 .cards-grid {
     display: grid;
@@ -1927,6 +1936,10 @@ body {
     .reports-hero {
         flex-direction: column;
         align-items: flex-start;
+    }
+    .reports-filter {
+        width: 100%;
+        min-width: 0;
     }
     .card-footer {
         justify-content: flex-start;
@@ -2303,6 +2316,34 @@ body.modal-open {
     justify-content: space-between;
     gap: 12px;
     align-items: baseline;
+}
+
+#report-modal {
+    padding: 12px;
+    box-sizing: border-box;
+}
+
+#report-modal .report-email-modal {
+    width: min(620px, 100%);
+}
+
+#report-modal .modal-row {
+    display: grid;
+    grid-template-columns: minmax(100px, auto) minmax(0, 1fr);
+    align-items: start;
+    gap: 8px 12px;
+}
+
+#report-modal .modal-row span:last-child {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    text-align: right;
+}
+
+#report-modal textarea {
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .modal textarea {
