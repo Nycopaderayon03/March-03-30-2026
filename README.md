@@ -28,3 +28,16 @@ cd /opt/ST
 ./scripts/deploy.sh /opt/ST
 ```
 
+## Automatic Due-Today Reminder Emails
+
+This repo now includes a daily reminder command:
+
+```bash
+python Services/manage.py send_due_today_reminders
+```
+
+Run it daily on the VPS (example: every day at 7:00 AM Asia/Manila) using root crontab:
+
+```bash
+0 7 * * * cd /opt/ST && docker compose --env-file .env -f docker/docker-compose.yml exec -T web python Services/manage.py send_due_today_reminders >> /var/log/st_due_reminders.log 2>&1
+```

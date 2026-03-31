@@ -169,6 +169,14 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 USE_X_FORWARDED_HOST = True
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
+# Public base URL used for links generated outside request/response flow
+# (for example cron-driven reminder emails).
+PUBLIC_BASE_URL = (os.environ.get("PUBLIC_BASE_URL") or "").strip().rstrip("/")
+if not PUBLIC_BASE_URL:
+    domain_fallback = (os.environ.get("DOMAIN") or "").strip()
+    if domain_fallback:
+        PUBLIC_BASE_URL = f"https://{domain_fallback}".rstrip("/")
+
 # Move Django admin to a non-standard URL to reduce automated probing.
 ADMIN_URL = os.environ.get("DJANGO_ADMIN_PATH", "secure-admin-portal").strip().strip("/")
 ADMIN_URL = f"{ADMIN_URL}/"

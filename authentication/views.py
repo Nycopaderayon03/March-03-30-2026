@@ -356,7 +356,7 @@ def warn_student_due_today(request, sanction, remaining_hours_display):
     """Send a reminder email when a sanction is due today."""
     if not sanction or not sanction.student or not sanction.student.email:
         return False
-    login_url = request.build_absolute_uri(reverse("student_service_hours"))
+    login_url = request.build_absolute_uri(reverse("login"))
     subject = f'Sanction Tracker — Reminder: "{sanction.violation}" is due today'
     due_date_display = sanction.due_date.strftime("%B %d, %Y")
     body = (
@@ -648,7 +648,7 @@ def add_new_student_with_sanction_view(request):
                 f"Password: {temp_password}\n\n"
                 f"This is a reminder that you currently have a sanction assigned:\n"
                 f"{sanction_summary}\n\n"
-                f"Please log in at {request.build_absolute_uri('/')[:-1]}login/ to view your sanctions "
+                f"Please log in at {login_url} to view your sanctions "
                 f"and submit proof of hours once completed.\n\n"
                 "If you did not expect this message, please contact your dean's office."
             )

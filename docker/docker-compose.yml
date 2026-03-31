@@ -28,6 +28,8 @@ services:
       - "8000:8000"
     environment:
       PYTHONPATH: /app
+      DOMAIN: ${DOMAIN:-my-jmc-pod.duckdns.org}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://my-jmc-pod.duckdns.org}
       DB_ENGINE: ${DB_ENGINE:-postgresql}
       DB_NAME: ${DB_NAME:-sanction_tracker_db}
       DB_USER: ${DB_USER:-sanction_user}
