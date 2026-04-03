@@ -4,6 +4,68 @@
 {% block sidebar_subtitle %}Management System{% endblock %}
 {% block nav_reports_active %}active{% endblock %}
 {% block page_subtitle %}Reports & Analytics{% endblock %}
+{% block extra_css %}
+<style>
+        .reports-toast-stack {
+            position: fixed;
+            right: 20px;
+            bottom: 20px;
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none;
+            max-width: min(92vw, 420px);
+        }
+
+        .reports-toast {
+            pointer-events: auto;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 12px 14px;
+            border-radius: 12px;
+            border: 1px solid transparent;
+            background: #ffffff;
+            box-shadow: 0 14px 30px rgba(15, 23, 42, 0.14);
+            color: #1f2937;
+            font-size: 14px;
+            line-height: 1.4;
+            animation: reports-toast-in 180ms ease-out;
+        }
+
+        .reports-toast i {
+            font-size: 18px;
+            margin-top: 1px;
+        }
+
+        .reports-toast.warning {
+            border-color: #facc15;
+            background: #fffbeb;
+        }
+
+        .reports-toast.error {
+            border-color: #fca5a5;
+            background: #fef2f2;
+        }
+
+        .reports-toast.success {
+            border-color: #86efac;
+            background: #f0fdf4;
+        }
+
+        @keyframes reports-toast-in {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+</style>
+{% endblock %}
 
 {% block content %}
         {% if messages %}
@@ -191,6 +253,7 @@
                 </div>
             </div>
         </div>
+        <div id="reports-toast-stack" class="reports-toast-stack" aria-live="polite" aria-atomic="true"></div>
 {% endblock %}
 
 {% block extra_js %}
@@ -217,6 +280,7 @@
         const modal = document.getElementById('report-modal');
         const emailBody = document.getElementById('report-email-body');
         const emailAddress = document.getElementById('report-dean-email');
+        const reportsToastStack = document.getElementById('reports-toast-stack');
         const generateButton = document.getElementById('generate-report-email');
         const copyButton = document.getElementById('copy-email-btn');
         const closeModalBtn = document.getElementById('close-report-modal');
@@ -227,6 +291,7 @@
         let activeMonthSelection = 'all';
         const SCHOOL_YEAR_STORAGE_KEY = 'reports_school_year';
         const SEMESTER_STORAGE_KEY = 'reports_semester';
+        let reportsToastTimer = null;
 
         function escapeHtml(value) {
             return (value ?? '')
@@ -236,6 +301,29 @@
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#39;');
+        }
+
+        function showReportToast(message, level = 'warning') {
+            if (!reportsToastStack || !message) {
+                return;
+            }
+
+            reportsToastStack.innerHTML = '';
+            const toast = document.createElement('div');
+            toast.className = `reports-toast ${level}`;
+
+            const icon = level === 'success' ? 'check_circle' : (level === 'error' ? 'error' : 'warning');
+            toast.innerHTML = `<i class="material-icons">${icon}</i><span>${escapeHtml(message)}</span>`;
+            reportsToastStack.appendChild(toast);
+
+            if (reportsToastTimer) {
+                clearTimeout(reportsToastTimer);
+            }
+            reportsToastTimer = window.setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.remove();
+                }
+            }, 3800);
         }
 
         function getCssColor(variable, fallback) {
@@ -646,7 +734,7 @@ Sanction Tracker Office`;
             const imageUrl = chartCanvas.toDataURL('image/png');
             const printWindow = window.open('', '_blank', 'width=900,height=700');
             if (!printWindow) {
-                alert('Pop-up blocked. Please enable pop-ups to print the chart.');
+                showReportToast('Pop-up blocked. Please enable pop-ups to print the chart.', 'warning');
                 return;
             }
             printWindow.document.write('<html><head><title>Sanctions by Month</title></head><body style="margin:0">');
@@ -677,13 +765,13 @@ Sanction Tracker Office`;
 
         function printSemesterChart() {
             if (!semesterHoursChart || !semesterChartCanvas || semesterChartCanvas.hidden) {
-                alert('No semester chart data to print yet.');
+                showReportToast('No semester chart data to print yet.', 'warning');
                 return;
             }
             const imageUrl = semesterChartCanvas.toDataURL('image/png');
             const printWindow = window.open('', '_blank', 'width=900,height=700');
             if (!printWindow) {
-                alert('Pop-up blocked. Please enable pop-ups to print the chart.');
+                showReportToast('Pop-up blocked. Please enable pop-ups to print the chart.', 'warning');
                 return;
             }
             printWindow.document.write('<html><head><title>Semester Service Hours</title></head><body style="margin:0">');
@@ -700,7 +788,7 @@ Sanction Tracker Office`;
 
         function exportSemesterChart() {
             if (!semesterHoursChart || !semesterChartCanvas || semesterChartCanvas.hidden) {
-                alert('No semester chart data to export yet.');
+                showReportToast('No semester chart data to export yet.', 'warning');
                 return;
             }
             const selectedLabel = semesterFilter?.selectedOptions?.[0]?.textContent?.trim() || 'semester';
@@ -746,7 +834,7 @@ Sanction Tracker Office`;
         }
 
         function viewConcern(studentName) {
-            alert(`Opening concern record for ${studentName}.`);
+            showReportToast(`Opening concern record for ${studentName}.`, 'success');
         }
 
         function getCurrentReportConfig() {
@@ -761,7 +849,7 @@ Sanction Tracker Office`;
         function openPrintableWindow(title, contentHtml, autoPrint = true) {
             const printWindow = window.open('', '_blank', 'width=900,height=700');
             if (!printWindow) {
-                alert('Pop-up blocked. Please enable pop-ups to print or export.');
+                showReportToast('Pop-up blocked. Please enable pop-ups to print or export.', 'warning');
                 return null;
             }
             const style = `
@@ -946,9 +1034,9 @@ Sanction Tracker Office`;
                 return;
             }
             navigator.clipboard?.writeText(text).then(() => {
-                alert('Email copied to clipboard.');
+                showReportToast('Email copied to clipboard.', 'success');
             }).catch(() => {
-                alert('Copy failed. Please copy the text manually.');
+                showReportToast('Copy failed. Please copy the text manually.', 'error');
             });
         });
 
@@ -958,15 +1046,6 @@ Sanction Tracker Office`;
                 closeModal();
             }
         });
-
-        const logoutLink = document.querySelector('a[href*="logout"]');
-        if (logoutLink) {
-            logoutLink.addEventListener('click', function (e) {
-                if (!confirm('Are you sure you want to logout?')) {
-                    e.preventDefault();
-                }
-            });
-        }
 
         document.addEventListener('DOMContentLoaded', function () {
             const savedSchoolYear = loadSavedSchoolYear();

@@ -8,6 +8,99 @@
     <link rel="stylesheet" href="{% static 'css/admin-theme.css' %}">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .app-toast-stack {
+            position: fixed;
+            right: 20px;
+            bottom: 20px;
+            z-index: 2500;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-width: min(92vw, 420px);
+            pointer-events: none;
+        }
+
+        .app-toast {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 12px 14px;
+            border-radius: 12px;
+            border: 1px solid #fde68a;
+            background: #fffbeb;
+            color: #1f2937;
+            box-shadow: 0 12px 24px rgba(15, 23, 42, 0.14);
+            font-size: 14px;
+            line-height: 1.45;
+            pointer-events: auto;
+            animation: app-toast-in 180ms ease-out;
+        }
+
+        .app-toast.success {
+            border-color: #86efac;
+            background: #f0fdf4;
+        }
+
+        .app-toast.error {
+            border-color: #fca5a5;
+            background: #fef2f2;
+        }
+
+        .app-toast i {
+            font-size: 18px;
+            margin-top: 1px;
+        }
+
+        .app-confirm-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 2600;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: rgba(15, 23, 42, 0.45);
+            padding: 20px;
+        }
+
+        .app-confirm-overlay.active {
+            display: flex;
+        }
+
+        .app-confirm-modal {
+            width: min(92vw, 420px);
+            border-radius: 14px;
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 20px 44px rgba(15, 23, 42, 0.22);
+            overflow: hidden;
+        }
+
+        .app-confirm-body {
+            padding: 18px 18px 10px;
+            color: #111827;
+            font-size: 15px;
+            line-height: 1.5;
+        }
+
+        .app-confirm-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            padding: 12px 18px 18px;
+        }
+
+        @keyframes app-toast-in {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
     {% block extra_css %}{% endblock %}
     {% block extra_head %}{% endblock %}
 </head>
@@ -117,6 +210,19 @@
         </div>
         {% endblock %}
     </div>
+    <div id="app-toast-stack" class="app-toast-stack" aria-live="polite" aria-atomic="true"></div>
+    <div id="logout-confirm-overlay" class="app-confirm-overlay" aria-hidden="true">
+        <div class="app-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="logout-confirm-title">
+            <div class="app-confirm-body">
+                <strong id="logout-confirm-title">Confirm Logout</strong>
+                <p id="logout-confirm-message">Are you sure you want to log out?</p>
+            </div>
+            <div class="app-confirm-actions">
+                <button type="button" id="logout-confirm-cancel" class="btn btn-secondary">Cancel</button>
+                <button type="button" id="logout-confirm-ok" class="btn btn-primary">Log Out</button>
+            </div>
+        </div>
+    </div>
 
     {% block extra_js %}{% endblock %}
     <script>
@@ -156,6 +262,173 @@
                     closeDropdown();
                 }
             });
+        })();
+
+        (function () {
+            const stack = document.getElementById('app-toast-stack');
+            if (!stack) return;
+
+            let activeTimer = null;
+            const nativeAlert = window.alert ? window.alert.bind(window) : null;
+
+            window.showAppToast = function (message, level = 'warning') {
+                const text = (message ?? '').toString().trim();
+                if (!text) return;
+
+                stack.innerHTML = '';
+                const item = document.createElement('div');
+                item.className = `app-toast ${level}`;
+                const icon = level === 'success' ? 'check_circle' : (level === 'error' ? 'error' : 'warning');
+                const iconEl = document.createElement('i');
+                iconEl.className = 'material-icons';
+                iconEl.textContent = icon;
+                const textEl = document.createElement('span');
+                textEl.textContent = text;
+                item.appendChild(iconEl);
+                item.appendChild(textEl);
+                stack.appendChild(item);
+
+                if (activeTimer) {
+                    clearTimeout(activeTimer);
+                }
+                activeTimer = window.setTimeout(() => {
+                    if (item.parentNode) {
+                        item.remove();
+                    }
+                }, 3800);
+            };
+
+            window.alert = function (message) {
+                window.showAppToast(message, 'warning');
+            };
+
+            window.nativeAlert = nativeAlert;
+        })();
+
+        (function () {
+            const overlay = document.getElementById('logout-confirm-overlay');
+            const messageEl = document.getElementById('logout-confirm-message');
+            const cancelBtn = document.getElementById('logout-confirm-cancel');
+            const okBtn = document.getElementById('logout-confirm-ok');
+            const logoutLinks = document.querySelectorAll('a[href*="logout"]');
+            if (!overlay || !messageEl || !cancelBtn || !okBtn || !logoutLinks.length) return;
+
+            let pendingHref = '';
+
+            function closeConfirm() {
+                overlay.classList.remove('active');
+                overlay.setAttribute('aria-hidden', 'true');
+                pendingHref = '';
+            }
+
+            function openConfirm(message, href) {
+                messageEl.textContent = message || 'Are you sure you want to log out?';
+                pendingHref = href || '';
+                overlay.classList.add('active');
+                overlay.setAttribute('aria-hidden', 'false');
+            }
+
+            logoutLinks.forEach(link => {
+                link.addEventListener('click', function (event) {
+                    event.preventDefault();
+                    openConfirm('Are you sure you want to log out?', link.getAttribute('href'));
+                });
+            });
+
+            cancelBtn.addEventListener('click', closeConfirm);
+            okBtn.addEventListener('click', function () {
+                if (pendingHref) {
+                    window.location.href = pendingHref;
+                    return;
+                }
+                closeConfirm();
+            });
+            overlay.addEventListener('click', function (event) {
+                if (event.target === overlay) {
+                    closeConfirm();
+                }
+            });
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape' && overlay.classList.contains('active')) {
+                    closeConfirm();
+                }
+            });
+        })();
+
+        (function () {
+            const sidebar = document.querySelector('.sidebar');
+            if (!sidebar) return;
+
+            const storageKey = 'st_mobile_nav_scroll_admin';
+            const mobileQuery = window.matchMedia('(max-width: 1024px)');
+            let saveTimer = null;
+
+            function saveNavScroll(value) {
+                if (!mobileQuery.matches) return;
+                try {
+                    const nextValue = typeof value === 'number' ? value : sidebar.scrollLeft;
+                    sessionStorage.setItem(storageKey, String(Math.max(0, Math.round(nextValue))));
+                } catch (error) {
+                    // Ignore storage issues.
+                }
+            }
+
+            function centerActiveItem(force = false) {
+                if (!mobileQuery.matches) return;
+                const activeItem = sidebar.querySelector('.nav-item.active');
+                if (!activeItem) return;
+
+                const targetLeft = Math.max(
+                    0,
+                    activeItem.offsetLeft - ((sidebar.clientWidth - activeItem.offsetWidth) / 2)
+                );
+                if (force || Math.abs(sidebar.scrollLeft - targetLeft) > 10) {
+                    sidebar.scrollLeft = targetLeft;
+                    saveNavScroll(targetLeft);
+                }
+            }
+
+            function restoreNavScroll() {
+                if (!mobileQuery.matches) return;
+                let restored = false;
+                try {
+                    const raw = sessionStorage.getItem(storageKey);
+                    if (raw !== null) {
+                        const parsed = Number(raw);
+                        if (Number.isFinite(parsed)) {
+                            sidebar.scrollLeft = Math.max(0, parsed);
+                            restored = true;
+                        }
+                    }
+                } catch (error) {
+                    // Ignore storage issues.
+                }
+                if (!restored) {
+                    centerActiveItem(true);
+                } else {
+                    // After layout settles, keep the active item visible.
+                    setTimeout(() => centerActiveItem(false), 90);
+                }
+            }
+
+            sidebar.addEventListener('scroll', function () {
+                if (!mobileQuery.matches) return;
+                if (saveTimer) {
+                    clearTimeout(saveTimer);
+                }
+                saveTimer = window.setTimeout(() => saveNavScroll(), 100);
+            }, { passive: true });
+
+            sidebar.querySelectorAll('.nav-item').forEach(item => {
+                item.addEventListener('click', function () {
+                    if (!mobileQuery.matches) return;
+                    const targetLeft = Math.max(0, item.offsetLeft - ((sidebar.clientWidth - item.offsetWidth) / 2));
+                    saveNavScroll(targetLeft);
+                });
+            });
+
+            window.addEventListener('pageshow', restoreNavScroll);
+            restoreNavScroll();
         })();
     </script>
 </body>

@@ -454,17 +454,6 @@
             autoFillDepartmentFromStudentSelection();
         }
 
-        function initLogoutHandler() {
-            const logoutBtn = document.querySelector('form[action*="logout"] button');
-            if (!logoutBtn) return;
-
-            logoutBtn.addEventListener('click', function(e) {
-                if (!confirm('Are you sure you want to logout?')) {
-                    e.preventDefault();
-                }
-            });
-        }
-
         function openEditModal(button) {
             const modal = document.getElementById('edit-sanction-modal');
             if (!modal) return;
@@ -556,7 +545,6 @@
         document.addEventListener('DOMContentLoaded', function() {
             initStudentSearch();
             initExistingStudentAutoDepartment();
-            initLogoutHandler();
             initEditModal();
             initHistorySearchAutoSubmit();
         });
