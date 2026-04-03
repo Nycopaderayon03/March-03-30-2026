@@ -12,28 +12,46 @@ from django.core.exceptions import ImproperlyConfigured
 BASE_DIR = Path(__file__).resolve().parent.parent
 BASE_DIR_STR = str(BASE_DIR)
 
-SECRET_KEY = 'django-insecure-mya8d15%lauz4ii5qaonq!ssgj6@he*o!gi+4(-6ajpuapikd9'
-DEBUG = True
+def env_bool(name: str, default: bool = False) -> bool:
+    return os.environ.get(name, str(default)).strip().lower() in {"1", "true", "yes", "on"}
 
-ALLOWED_HOSTS = [
-    "my-jmc-pod.duckdns.org",
-    "jmcedu.duckdns.org",
-    "72.62.197.37",
-    "143.44.184.72",
-    "localhost",
-    "127.0.0.1",
-    "web",
-    "web:8000",
-    ".trycloudflare.com",
-]
 
-CSRF_TRUSTED_ORIGINS = [
-    "https://my-jmc-pod.duckdns.org",
-    "http://my-jmc-pod.duckdns.org",
-    "https://jmcedu.duckdns.org",
-    "http://jmcedu.duckdns.org",
-    "https://*.trycloudflare.com",
-]
+def env_csv(name: str) -> list[str]:
+    return [value.strip() for value in os.environ.get(name, "").split(",") if value.strip()]
+
+
+DEBUG = env_bool("DEBUG", False)
+
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "").strip()
+if not SECRET_KEY:
+    if DEBUG:
+        # Local dev fallback only. Never rely on this in production.
+        SECRET_KEY = "unsafe-dev-secret-key-change-me"
+    else:
+        raise ImproperlyConfigured("DJANGO_SECRET_KEY must be set when DEBUG is False.")
+
+configured_allowed_hosts = env_csv("ALLOWED_HOSTS")
+if configured_allowed_hosts:
+    ALLOWED_HOSTS = configured_allowed_hosts
+else:
+    ALLOWED_HOSTS = [
+        "localhost",
+        "127.0.0.1",
+        "web",
+        "my-jmc-pod.duckdns.org",
+        "jmcedu.duckdns.org",
+        "72.62.197.37",
+        "143.44.184.72",
+    ]
+
+configured_csrf_trusted_origins = env_csv("CSRF_TRUSTED_ORIGINS")
+if configured_csrf_trusted_origins:
+    CSRF_TRUSTED_ORIGINS = configured_csrf_trusted_origins
+else:
+    CSRF_TRUSTED_ORIGINS = [
+        "https://my-jmc-pod.duckdns.org",
+        "https://jmcedu.duckdns.org",
+    ]
 
 
 extra_allowed_hosts = [
@@ -51,6 +69,15 @@ extra_csrf_trusted_origins = [
 ]
 if extra_csrf_trusted_origins:
     CSRF_TRUSTED_ORIGINS.extend(extra_csrf_trusted_origins)
+
+domain_host = (os.environ.get("DOMAIN") or "").strip()
+if domain_host:
+    ALLOWED_HOSTS.append(domain_host)
+    CSRF_TRUSTED_ORIGINS.append(f"https://{domain_host}")
+
+# De-duplicate while preserving order
+ALLOWED_HOSTS = list(dict.fromkeys(ALLOWED_HOSTS))
+CSRF_TRUSTED_ORIGINS = list(dict.fromkeys(CSRF_TRUSTED_ORIGINS))
 
 AUTH_USER_MODEL = 'authentication.User'
 
@@ -168,6 +195,22 @@ MESSAGE_STORAGE = 'django.contrib.messages.storage.session.SessionStorage'
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 USE_X_FORWARDED_HOST = True
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+if not DEBUG:
+    SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", True)
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = int(os.environ.get("SECURE_HSTS_SECONDS", "31536000"))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool("SECURE_HSTS_INCLUDE_SUBDOMAINS", True)
+    SECURE_HSTS_PRELOAD = env_bool("SECURE_HSTS_PRELOAD", True)
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_REFERRER_POLICY = os.environ.get(
+        "SECURE_REFERRER_POLICY", "strict-origin-when-cross-origin"
+    )
+
+# Basic protection against oversized uploads causing memory pressure.
+DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get("DATA_UPLOAD_MAX_MEMORY_SIZE", "10485760"))
+FILE_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get("FILE_UPLOAD_MAX_MEMORY_SIZE", "5242880"))
 
 # Public base URL used for links generated outside request/response flow
 # (for example cron-driven reminder emails).

@@ -21,11 +21,19 @@ services:
       dockerfile: docker/Dockerfile
     container_name: st-web
     restart: unless-stopped
-    command: gunicorn sanctiontracker.wsgi:application --bind 0.0.0.0:8000
+    command: >-
+      gunicorn sanctiontracker.wsgi:application
+      --bind 0.0.0.0:8000
+      --workers ${GUNICORN_WORKERS:-2}
+      --threads ${GUNICORN_THREADS:-2}
+      --timeout ${GUNICORN_TIMEOUT:-60}
+      --graceful-timeout ${GUNICORN_GRACEFUL_TIMEOUT:-30}
+      --max-requests ${GUNICORN_MAX_REQUESTS:-1000}
+      --max-requests-jitter ${GUNICORN_MAX_REQUESTS_JITTER:-100}
     expose:
       - "8000"
     ports:
-      - "8000:8000"
+      - "${WEB_BIND:-127.0.0.1:8000}:8000"
     environment:
       PYTHONPATH: /app
       DOMAIN: ${DOMAIN:-my-jmc-pod.duckdns.org}
@@ -47,6 +55,19 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/login/', timeout=5)\" >/dev/null 2>&1 || exit 1",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    mem_limit: 768m
+    cpus: "1.0"
+    stop_grace_period: 30s
     volumes:
       - ..:/app
       - media_data:/app/media

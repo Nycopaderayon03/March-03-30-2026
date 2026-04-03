@@ -28,6 +28,24 @@ cd /opt/ST
 ./scripts/deploy.sh /opt/ST
 ```
 
+## Production Safety Checklist (Hostinger)
+
+Before deploying, copy `.env.example` to `.env` and set real values:
+
+- `DEBUG=false`
+- `DJANGO_SECRET_KEY` set to a long random value
+- `ALLOWED_HOSTS` and `CSRF_TRUSTED_ORIGINS` set to your real domain(s)
+- strong `DB_PASSWORD`
+- `EMAIL_HOST_PASSWORD` as app password (never commit it)
+
+The deployment script now runs:
+
+```bash
+python Services/manage.py check --deploy
+```
+
+If the check fails, fix the warning before continuing.
+
 ## Automatic Due-Today Reminder Emails
 
 This repo now includes a daily reminder command:
