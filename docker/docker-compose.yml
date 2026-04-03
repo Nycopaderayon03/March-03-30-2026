@@ -3,6 +3,11 @@ services:
     image: postgres:16-alpine
     container_name: st-db
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     environment:
       POSTGRES_DB: ${DB_NAME:-sanction_tracker_db}
       POSTGRES_USER: ${DB_USER:-sanction_user}
@@ -21,6 +26,11 @@ services:
       dockerfile: docker/Dockerfile
     container_name: st-web
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     command: >-
       gunicorn sanctiontracker.wsgi:application
       --bind 0.0.0.0:8000
@@ -81,6 +91,11 @@ services:
     image: nginx:alpine
     container_name: st-nginx
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     depends_on:
       - web
     ports:
@@ -100,6 +115,11 @@ services:
     image: certbot/certbot:latest
     container_name: st-certbot
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     volumes:
       - certbot_www:/var/www/certbot
       - letsencrypt_certs:/etc/letsencrypt
@@ -112,6 +132,11 @@ services:
     image: cloudflare/cloudflared:latest
     container_name: st-cloudflared
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     profiles: ["tunnel"]
     depends_on:
       - nginx
@@ -121,6 +146,11 @@ services:
     image: dpage/pgadmin4:8
     container_name: st-pgadmin
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     profiles: ["pgadmin"]
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.com}

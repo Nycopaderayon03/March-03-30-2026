@@ -2,6 +2,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from authentication.models import User
+from authentication.views import build_monthly_pod_case_map
 
 
 class AuthenticationViewsTests(TestCase):
@@ -58,3 +59,37 @@ class AuthenticationViewsTests(TestCase):
         self.client.login(username="student_user", password="StudentPass123!")
         response = self.client.get(reverse("admin_dashboard"))
         self.assertEqual(response.status_code, 302)
+
+    def test_build_monthly_pod_case_map_resets_sequence_per_month(self):
+        may_first = User.objects.create_user(
+            username="may_1",
+            email="may1@example.com",
+            password="Pass1234!",
+            role="student",
+            status="active",
+        )
+        may_second = User.objects.create_user(
+            username="may_2",
+            email="may2@example.com",
+            password="Pass1234!",
+            role="student",
+            status="active",
+        )
+        june_first = User.objects.create_user(
+            username="june_1",
+            email="june1@example.com",
+            password="Pass1234!",
+            role="student",
+            status="active",
+        )
+
+        User.objects.filter(id=may_first.id).update(date_joined="2026-05-01T08:00:00Z")
+        User.objects.filter(id=may_second.id).update(date_joined="2026-05-12T08:00:00Z")
+        User.objects.filter(id=june_first.id).update(date_joined="2026-06-01T08:00:00Z")
+
+        students = User.objects.filter(id__in=[may_first.id, may_second.id, june_first.id]).order_by("date_joined", "id")
+        result = build_monthly_pod_case_map(students)
+
+        self.assertEqual(result[may_first.id]["pod_case_no"], "0001")
+        self.assertEqual(result[may_second.id]["pod_case_no"], "0002")
+        self.assertEqual(result[june_first.id]["pod_case_no"], "0001")

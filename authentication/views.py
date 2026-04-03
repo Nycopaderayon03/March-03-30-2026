@@ -183,16 +183,36 @@ def sync_sanctions_for_queryset(queryset):
     return sanctions
 
 
-def format_pod_case_parts(student, sequence_no):
+def get_student_joined_date(student):
     joined_at = getattr(student, "date_joined", None)
     if joined_at:
         joined_date = timezone.localtime(joined_at).date() if timezone.is_aware(joined_at) else joined_at.date()
     else:
         joined_date = timezone.localdate()
+    return joined_date
+
+
+def format_pod_case_parts(student, sequence_no):
+    joined_date = get_student_joined_date(student)
     return {
         "pod_case_no": f"{int(sequence_no):04d}",
         "date": joined_date.strftime("%Y-%m-%d"),
     }
+
+
+def build_monthly_pod_case_map(students):
+    monthly_counters = {}
+    pod_case_parts_by_student_id = {}
+    for student in students:
+        joined_date = get_student_joined_date(student)
+        month_key = (joined_date.year, joined_date.month)
+        sequence_no = monthly_counters.get(month_key, 0) + 1
+        monthly_counters[month_key] = sequence_no
+        pod_case_parts_by_student_id[student.id] = {
+            "pod_case_no": f"{sequence_no:04d}",
+            "date": joined_date.strftime("%Y-%m-%d"),
+        }
+    return pod_case_parts_by_student_id
 
 
 def attempt_student_password_change(request, current_password, new_password, confirm_password):
@@ -721,6 +741,9 @@ def student_management_view(request):
         return redirect("dashboard")
 
     students = User.objects.filter(role="student").order_by("id")
+    pod_case_parts_by_student_id = build_monthly_pod_case_map(
+        User.objects.filter(role="student").only("id", "date_joined").order_by("date_joined", "id")
+    )
 
     search_query = request.GET.get("search", "").strip()
     if search_query:
@@ -744,8 +767,8 @@ def student_management_view(request):
     active_students = students.filter(is_active=True).count()
     students_with_sanctions = len(active_sanctions_by_student)
     students = list(students)
-    for index, student in enumerate(students, start=1):
-        pod_case_parts = format_pod_case_parts(student, index)
+    for student in students:
+        pod_case_parts = pod_case_parts_by_student_id.get(student.id) or format_pod_case_parts(student, 1)
         student.pod_case_no = pod_case_parts["pod_case_no"]
         student.pod_case_date = pod_case_parts["date"]
         student.display_student_id = student.student_code or student.identifier
