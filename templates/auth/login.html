@@ -4,6 +4,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#7a207f">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="apple-touch-icon" href="{% static 'images/logo1.png' %}">
     <title>Student Sanction System - Login</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -225,4 +230,14 @@
         <p class="login-footer">&copy; 2026 Sanction Tracker System. All rights reserved.</p>
     </div>
 </body>
+<script>
+    (function () {
+        if (!('serviceWorker' in navigator)) return;
+        window.addEventListener('load', function () {
+            navigator.serviceWorker.register('/sw.js').catch(function () {
+                // Keep silent on registration failures.
+            });
+        });
+    })();
+</script>
 </html>

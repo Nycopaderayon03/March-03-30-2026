@@ -1,5 +1,6 @@
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
+import json
 import logging
 
 from django.conf import settings
@@ -8,7 +9,7 @@ from django.contrib.auth import authenticate, login, logout, update_session_auth
 from django.contrib.auth.decorators import login_required
 from django.core.mail import send_mail
 from django.db.models import Q, Sum
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -28,6 +29,110 @@ DEPARTMENT_CHOICES = [
     "College Of Information Technology Education",
     "College Of Teacher Education",
 ]
+
+
+def manifest_view(_request):
+    manifest = {
+        "name": "Sanction Tracker",
+        "short_name": "SanctionTracker",
+        "description": "Track sanctions and service hours.",
+        "start_url": "/login/",
+        "scope": "/",
+        "display": "standalone",
+        "background_color": "#ffffff",
+        "theme_color": "#7a207f",
+        "icons": [
+            {
+                "src": "/static/images/logo1.png",
+                "sizes": "192x192",
+                "type": "image/png",
+                "purpose": "any",
+            },
+            {
+                "src": "/static/images/logo1.png",
+                "sizes": "512x512",
+                "type": "image/png",
+                "purpose": "any",
+            },
+        ],
+    }
+    return HttpResponse(
+        json.dumps(manifest),
+        content_type="application/manifest+json",
+    )
+
+
+def service_worker_view(_request):
+    script = """
+const CACHE_NAME = 'st-pwa-v1';
+const STATIC_ASSETS = [
+  '/',
+  '/login/',
+  '/static/css/admin-theme.css',
+  '/static/images/logo1.png'
+];
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS)).catch(() => Promise.resolve())
+  );
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))
+    )
+  );
+  self.clients.claim();
+});
+
+self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') {
+    return;
+  }
+
+  const requestUrl = new URL(event.request.url);
+  const isSameOrigin = requestUrl.origin === self.location.origin;
+  if (!isSameOrigin) {
+    return;
+  }
+
+  const isHtmlNav =
+    event.request.mode === 'navigate' ||
+    (event.request.headers.get('accept') || '').includes('text/html');
+
+  if (isHtmlNav) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          return response;
+        })
+        .catch(() => caches.match(event.request).then((cached) => cached || caches.match('/login/')))
+    );
+    return;
+  }
+
+  event.respondWith(
+    caches.match(event.request).then((cached) => {
+      if (cached) {
+        return cached;
+      }
+      return fetch(event.request).then((response) => {
+        if (response && response.status === 200) {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        }
+        return response;
+      });
+    })
+  );
+});
+""".strip()
+    return HttpResponse(script, content_type="application/javascript")
 
 
 def has_admin_access(user):

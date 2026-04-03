@@ -29,6 +29,8 @@ def hidden_admin_entrypoint(_request):
 
 urlpatterns = [
     path('', auth_views.login_view, name='home'),
+    path('manifest.webmanifest', auth_views.manifest_view, name='manifest'),
+    path('sw.js', auth_views.service_worker_view, name='service_worker'),
     path('admin-panel/', custom_admin_site.urls),
     path('login/', auth_views.login_view, name='login'),
     path('dashboard/', auth_views.dashboard_view, name='dashboard'),
