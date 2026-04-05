@@ -99,6 +99,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'authentication.middleware.RateLimitMiddleware',  # Protect against abuse
 ]
 
 ROOT_URLCONF = 'sanctiontracker.urls'
@@ -122,6 +123,22 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'sanctiontracker.wsgi.application'
+
+
+# =========================
+# Caching (for rate limiting & session management)
+# =========================
+CACHES = {
+    'default': {
+        'BACKEND': os.environ.get('CACHE_BACKEND', 'django.core.cache.backends.locmem.LocMemCache'),
+        'LOCATION': os.environ.get('CACHE_LOCATION', 'unique-snowflake'),
+        'TIMEOUT': int(os.environ.get('CACHE_TIMEOUT', '300')),
+        'OPTIONS': {
+            'MAX_ENTRIES': int(os.environ.get('CACHE_MAX_ENTRIES', '1000')),
+        }
+    }
+}
+# For production, consider using Redis or Memcached
 
 
 # =========================
@@ -226,14 +243,81 @@ ADMIN_URL = f"{ADMIN_URL}/"
 
 
 # =========================
-# Email (SMTP)
+# Email Configuration (Auto-detect Resend vs SMTP)
 # =========================
-EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.gmail.com")
-EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
-EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "true").strip().lower() in {"1", "true", "yes", "on"}
-EMAIL_USE_SSL = os.environ.get("EMAIL_USE_SSL", "false").strip().lower() in {"1", "true", "yes", "on"}
 
-EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
-EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD")
-DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER)
+# Support both Resend API and Gmail SMTP (with auto-detection)
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "").strip()
+SMTP_ENABLED = not RESEND_API_KEY
+
+if RESEND_API_KEY:
+    # Use Resend API (modern, better for production)
+    EMAIL_BACKEND = "resend.django.backend.EmailBackend"
+    logger.info("Using Resend email backend")
+    # Resend from email can be set via RESEND_FROM_EMAIL or DEFAULT_FROM_EMAIL
+    RESEND_FROM_EMAIL = os.environ.get("RESEND_FROM_EMAIL", "").strip()
+    # Default to onboarding email if not configured
+    if not RESEND_FROM_EMAIL:
+        RESEND_FROM_EMAIL = "onboarding@resend.dev"
+    DEFAULT_FROM_EMAIL = RESEND_FROM_EMAIL
+else:
+    # Fallback to Gmail SMTP (legacy)
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+    EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.gmail.com")
+    EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+    EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "true").strip().lower() in {"1", "true", "yes", "on"}
+    EMAIL_USE_SSL = os.environ.get("EMAIL_USE_SSL", "false").strip().lower() in {"1", "true", "yes", "on"}
+    
+    EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+    EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD")
+    DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER)
+    logger.warning("Using legacy Gmail SMTP. Consider migrating to Resend for better reliability.")
+
+# =========================
+# Logging
+# =========================
+_LOGS_DIR = os.path.join(BASE_DIR_STR, 'logs')
+if not os.path.exists(_LOGS_DIR):
+    os.makedirs(_LOGS_DIR, exist_ok=True)
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {asctime} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+        'file': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(_LOGS_DIR, 'django.log'),
+            'maxBytes': 10485760,  # 10 MB
+            'backupCount': 5,
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'authentication': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}

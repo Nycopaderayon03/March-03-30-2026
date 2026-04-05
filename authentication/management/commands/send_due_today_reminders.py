@@ -1,13 +1,17 @@
 from decimal import Decimal
+import time
+import logging
 
 from django.conf import settings
-from django.core.mail import send_mail
+from django.core.mail import send_mail, EmailMessage
 from django.core.management.base import BaseCommand
 from django.db.models import Sum
 from django.urls import reverse
 from django.utils import timezone
 
 from authentication.models import Sanction, ServiceHourSubmission
+
+logger = logging.getLogger(__name__)
 
 
 def _format_hours(value):
@@ -30,7 +34,29 @@ def _build_login_url():
 
 
 class Command(BaseCommand):
-    help = "Sends due-today reminder emails to students with remaining hours."
+    help = "Sends due-today reminder emails to students with remaining hours (rate-limited)."
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--batch-size',
+            type=int,
+            help='Number of emails to send before pausing (default: auto-detect)',
+        )
+        parser.add_argument(
+            '--delay-between-batches',
+            type=float,
+            help='Delay in seconds between batches (default: auto-detect)',
+        )
+        parser.add_argument(
+            '--delay-between-emails',
+            type=float,
+            help='Delay in seconds between individual emails (default: auto-detect)',
+        )
+        parser.add_argument(
+            '--skip-bounced',
+            action='store_true',
+            help='Skip emails marked as bounced',
+        )
 
     def handle(self, *args, **options):
         today = timezone.localdate()
@@ -38,6 +64,26 @@ class Command(BaseCommand):
         from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "") or getattr(
             settings, "EMAIL_HOST_USER", "no-reply@sanctiontracker.local"
         )
+        
+        # Auto-detect optimal settings based on email backend
+        backend = getattr(settings, 'EMAIL_BACKEND', '')
+        is_resend = 'resend' in backend.lower()
+        
+        # Smarter defaults: Resend can handle higher load
+        if is_resend:
+            default_batch_size = 50
+            default_delay_between_batches = 0.5
+            default_delay_between_emails = 0.1
+        else:
+            # Gmail SMTP defaults (safer)
+            default_batch_size = 10
+            default_delay_between_batches = 2.0
+            default_delay_between_emails = 0.5
+        
+        batch_size = options.get('batch_size') or default_batch_size
+        delay_between_batches = options.get('delay_between_batches') or default_delay_between_batches
+        delay_between_emails = options.get('delay_between_emails') or default_delay_between_emails
+        skip_bounced = options.get('skip_bounced', False)
 
         sanctions = Sanction.objects.select_related("student", "sanction_type").filter(
             status="active",
@@ -48,11 +94,19 @@ class Command(BaseCommand):
         sent_count = 0
         skipped_count = 0
         failed_count = 0
+        batch_count = 0
 
         for sanction in sanctions:
             if not sanction.student or not sanction.student.email:
                 skipped_count += 1
                 continue
+            
+            # Skip bounced emails if flag is set
+            if skip_bounced and getattr(sanction.student, 'email_bounced', False):
+                skipped_count += 1
+                logger.info(f"Skipping bounced email for {sanction.student.email}")
+                continue
+            
             if sanction.due_warning_sent_today(today):
                 skipped_count += 1
                 continue
@@ -89,14 +143,34 @@ class Command(BaseCommand):
                 send_mail(subject, body, from_email, [sanction.student.email])
                 sanction.record_due_warning_sent()
                 sent_count += 1
+                batch_count += 1
+
+                # Add delay between emails to reduce server load
+                if delay_between_emails > 0:
+                    time.sleep(delay_between_emails)
+
+                # Pause between batches to prevent resource spikes
+                if batch_count >= batch_size:
+                    logger.info(
+                        f"Email batch {sent_count // batch_size} complete. "
+                        f"Pausing {delay_between_batches}s before next batch."
+                    )
+                    time.sleep(delay_between_batches)
+                    batch_count = 0
+
             except Exception as exc:
                 failed_count += 1
-                self.stderr.write(
+                logger.error(
                     f"Failed to send due-today reminder to {sanction.student.email}: {exc}"
                 )
 
+        elapsed_seconds = (sent_count * delay_between_emails) + ((sent_count // batch_size) * delay_between_batches)
         self.stdout.write(
             self.style.SUCCESS(
-                f"Due-today reminders complete. sent={sent_count} skipped={skipped_count} failed={failed_count}"
+                f"Due-today reminders complete. "
+                f"sent={sent_count} skipped={skipped_count} failed={failed_count} "
+                f"elapsed_approx={elapsed_seconds:.1f}s"
             )
         )
+        if failed_count > 0:
+            logger.warning(f"Email delivery had {failed_count} failures.")
