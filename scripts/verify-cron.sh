@@ -14,6 +14,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 STATUS=0
+CURRENT_CRON=""
 
 # Check 1: Verify crontab exists
 echo "Checking crontab configuration..."
@@ -49,9 +50,9 @@ fi
 # Check 3: Look for other problematic patterns
 echo ""
 echo "Checking for other potential issues..."
-if echo "$CURRENT_CRON" | grep -q "*/1.*\|^[0-9].*\* \*"; then
+if echo "$CURRENT_CRON" | grep -Eq '(^|\s)\*/1(\s|$)|^[0-9,\-]+\s+\*\s+\*\s+\*'; then
     echo -e "${YELLOW}⚠${NC} Found jobs that may run frequently"
-    echo "$CURRENT_CRON" | grep -E "*/1.*|^[0-9].*\* \*" || true
+    echo "$CURRENT_CRON" | grep -E '(^|\s)\*/1(\s|$)|^[0-9,\-]+\s+\*\s+\*\s+\*' || true
 fi
 
 # Check 4: Verify Docker presence

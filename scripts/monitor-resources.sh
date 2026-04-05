@@ -15,13 +15,38 @@ GREEN='\033[0;32m'
 NC='\033[0m'
 
 # Config
-WEB_CONTAINER="${WEB_CONTAINER:-st-web}"
-DB_CONTAINER="${DB_CONTAINER:-st-db}"
-NGINX_CONTAINER="${NGINX_CONTAINER:-st-nginx}"
+WEB_CONTAINER="${WEB_CONTAINER:-}"
+DB_CONTAINER="${DB_CONTAINER:-}"
+NGINX_CONTAINER="${NGINX_CONTAINER:-}"
 CPU_WARN_THRESHOLD="${CPU_WARN_THRESHOLD:-70}"
 CPU_CRIT_THRESHOLD="${CPU_CRIT_THRESHOLD:-85}"
 MEM_WARN_THRESHOLD="${MEM_WARN_THRESHOLD:-70}"
 MEM_CRIT_THRESHOLD="${MEM_CRIT_THRESHOLD:-85}"
+
+resolve_container_name() {
+    local configured_name=$1
+    shift
+    local candidates=("$@")
+
+    if [[ -n "$configured_name" ]]; then
+        echo "$configured_name"
+        return 0
+    fi
+
+    for name in "${candidates[@]}"; do
+        if docker ps -a --format '{{.Names}}' | grep -q "^${name}$"; then
+            echo "$name"
+            return 0
+        fi
+    done
+
+    # Fall back to the first known default to keep output deterministic.
+    echo "${candidates[0]}"
+}
+
+WEB_CONTAINER="$(resolve_container_name "$WEB_CONTAINER" "st-web" "sanctiontracker-web")"
+DB_CONTAINER="$(resolve_container_name "$DB_CONTAINER" "st-db" "sanctiontracker-db")"
+NGINX_CONTAINER="$(resolve_container_name "$NGINX_CONTAINER" "st-nginx" "sanctiontracker-nginx")"
 
 # Function to check container status
 check_container() {
