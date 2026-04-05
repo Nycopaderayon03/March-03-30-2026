@@ -59,7 +59,8 @@ check_container() {
     fi
     
     # Get stats - non-blocking
-    if docker stats --no-stream --format '{{.CPUPerc}}|{{.MemPerc}}|{{.MemUsage}}' "$container" 2>/dev/null | read -r stats; then
+    stats="$(docker stats --no-stream --format '{{.CPUPerc}}|{{.MemPerc}}|{{.MemUsage}}' "$container" 2>/dev/null || true)"
+    if [[ -n "$stats" ]]; then
         IFS='|' read -r cpu_percent mem_percent mem_usage <<< "$stats"
         
         # Remove % signs
@@ -109,7 +110,7 @@ if [[ $DISK_USAGE -gt 85 ]]; then
 elif [[ $DISK_USAGE -gt 70 ]]; then
     DISK_STATUS="${YELLOW}WARNING$NC"
 fi
-echo -e "  Root: $(df -h / | awk 'NR==2 {print $2, "used", $3}' - $(echo $DISK_USAGE)%) [$DISK_STATUS]"
+echo -e "  Root: $(df -h / | awk 'NR==2 {print $2, "used", $3}') (${DISK_USAGE}%) [$DISK_STATUS]"
 
 # Check network connections (rate limiting indicator)
 echo ""
