@@ -60,7 +60,7 @@ fi
 echo ""
 echo "Checking configuration..."
 if [[ -f "$PROJECT_DIR/.env" ]]; then
-    required_vars=("DJANGO_SECRET_KEY" "DB_PASSWORD" "EMAIL_HOST_PASSWORD")
+    required_vars=("DJANGO_SECRET_KEY" "DB_PASSWORD")
     missing=0
     
     for var in "${required_vars[@]}"; do
@@ -71,6 +71,14 @@ if [[ -f "$PROJECT_DIR/.env" ]]; then
             missing=$((missing+1))
         fi
     done
+
+    # Accept either SMTP password or Resend API key for production email.
+    if grep -q '^EMAIL_HOST_PASSWORD=.\\+$' "$PROJECT_DIR/.env" || grep -q '^RESEND_API_KEY=.\\+$' "$PROJECT_DIR/.env"; then
+        echo -e "${GREEN}✓${NC} Email provider secret is configured"
+    else
+        echo -e "${YELLOW}⚠${NC} No email provider secret found (set EMAIL_HOST_PASSWORD or RESEND_API_KEY)"
+        missing=$((missing+1))
+    fi
     
     if [[ $missing -gt 0 ]]; then
         echo "  Run: cp .env.example .env && nano .env"
@@ -84,7 +92,9 @@ fi
 # Check 5: Logs for errors
 echo ""
 echo "Checking recent logs..."
-ERROR_COUNT=$(docker logs --tail 100 st-web 2>/dev/null | grep -i "error\|critical" | wc -l || echo 0)
+ERROR_COUNT=$(docker logs --tail 100 st-web 2>/dev/null | grep -Eic "error|critical" || true)
+ERROR_COUNT="${ERROR_COUNT//[[:space:]]/}"
+ERROR_COUNT="${ERROR_COUNT:-0}"
 if [[ $ERROR_COUNT -eq 0 ]]; then
     echo -e "${GREEN}✓${NC} No recent errors in logs"
 else

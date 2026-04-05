@@ -116,8 +116,8 @@ echo -e "  Root: $(df -h / | awk 'NR==2 {print $2, "used", $3}') (${DISK_USAGE}%
 echo ""
 echo "Network Activity:"
 if command -v ss &> /dev/null; then
-    ESTABLISHED=$(ss -tan | grep ESTABLISHED | wc -l)
-    LISTEN=$(ss -tan | grep LISTEN | wc -l)
+    ESTABLISHED=$(ss -tan | grep -c ESTABLISHED || true)
+    LISTEN=$(ss -tan | grep -c LISTEN || true)
     echo "  Established connections: $ESTABLISHED"
     echo "  Listening ports: $LISTEN"
 else

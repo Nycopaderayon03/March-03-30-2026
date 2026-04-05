@@ -41,6 +41,24 @@ if echo "$CURRENT_CRON" | grep -q "send_due_today_reminders"; then
     else
         echo -e "${GREEN}✓${NC} Schedule appears reasonable"
     fi
+
+    # Verify flock lock is used to prevent overlapping runs
+    if echo "$CRON_LINE" | grep -q "flock -n /tmp/st_due_reminders.lock"; then
+        echo -e "${GREEN}✓${NC} Flock lock is enabled"
+    else
+        echo -e "${YELLOW}⚠${NC} Flock lock not found (overlapping runs possible)"
+        echo "   Recommended: /usr/bin/flock -n /tmp/st_due_reminders.lock ..."
+        STATUS=1
+    fi
+
+    # Verify bounced addresses are skipped
+    if echo "$CRON_LINE" | grep -q -- "--skip-bounced"; then
+        echo -e "${GREEN}✓${NC} --skip-bounced is enabled"
+    else
+        echo -e "${YELLOW}⚠${NC} --skip-bounced flag not found"
+        echo "   Recommended: add --skip-bounced to reminder command"
+        STATUS=1
+    fi
 else
     echo -e "${YELLOW}⚠${NC} No reminder job found in crontab"
     echo "   Add it with: crontab -e"
