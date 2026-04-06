@@ -308,24 +308,18 @@
             });
         }
 
-        function getCookie(name) {
-            let cookieValue = null;
-            if (document.cookie && document.cookie !== '') {
-                const cookies = document.cookie.split(';');
-                for (let cookie of cookies) {
-                    cookie = cookie.trim();
-                    if (cookie.startsWith(name + '=')) {
-                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                        break;
-                    }
-                }
+        function getCsrfToken() {
+            const metaToken = document.querySelector('meta[name="csrf-token"]');
+            if (metaToken && metaToken.content && metaToken.content !== 'NOTPROVIDED') {
+                return metaToken.content;
             }
-            return cookieValue;
+            const formToken = document.querySelector('input[name="csrfmiddlewaretoken"]');
+            return formToken ? formToken.value : '';
         }
 
         function updateSubmissionStatus(submissionId, status) {
             const url = `{% url 'service_submission_status' submission_id=0 %}`.replace('/0/', `/${submissionId}/`);
-            const csrftoken = getCookie('csrftoken');
+            const csrftoken = getCsrfToken();
             return fetch(url, {
                 method: 'POST',
                 headers: {
