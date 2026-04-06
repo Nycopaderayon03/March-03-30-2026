@@ -56,15 +56,19 @@ def manifest_view(_request):
             },
         ],
     }
-    return HttpResponse(
+    response = HttpResponse(
         json.dumps(manifest),
         content_type="application/manifest+json",
     )
+    response["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response["Pragma"] = "no-cache"
+    response["Expires"] = "0"
+    return response
 
 
 def service_worker_view(_request):
     script = """
-const CACHE_NAME = 'st-pwa-v1';
+const CACHE_NAME = 'st-pwa-v2';
 const STATIC_ASSETS = [
   '/',
   '/login/',
@@ -132,7 +136,11 @@ self.addEventListener('fetch', (event) => {
   );
 });
 """.strip()
-    return HttpResponse(script, content_type="application/javascript")
+    response = HttpResponse(script, content_type="application/javascript")
+    response["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response["Pragma"] = "no-cache"
+    response["Expires"] = "0"
+    return response
 
 
 def has_admin_access(user):
