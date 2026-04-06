@@ -107,6 +107,34 @@
             border-bottom-color: var(--brand-purple);
         }
 
+        .password-group {
+            position: relative;
+        }
+
+        .password-group .form-control {
+            padding-right: 34px;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            border: none;
+            background: transparent;
+            color: #666;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            line-height: 1;
+            cursor: pointer;
+            padding: 4px 0;
+        }
+
+        .password-toggle:hover {
+            color: var(--brand-purple);
+        }
+
         .login-button {
             width: 100%;
             padding: 14px;
@@ -222,7 +250,10 @@
 
             <div class="form-group">
                 <label for="password">Password</label>
-                <input type="password" id="password" name="password" class="form-control" required>
+                <div class="password-group">
+                    <input type="password" id="password" name="password" class="form-control" required>
+                    <button type="button" id="password-toggle" class="password-toggle" aria-label="Show password" aria-pressed="false">Show</button>
+                </div>
             </div>
 
             <button type="submit" class="login-button">Sign In</button>
@@ -232,6 +263,19 @@
 </body>
 <script>
     (function () {
+        var passwordInput = document.getElementById('password');
+        var toggleButton = document.getElementById('password-toggle');
+
+        if (passwordInput && toggleButton) {
+            toggleButton.addEventListener('click', function () {
+                var showPassword = passwordInput.type === 'password';
+                passwordInput.type = showPassword ? 'text' : 'password';
+                toggleButton.setAttribute('aria-pressed', showPassword ? 'true' : 'false');
+                toggleButton.setAttribute('aria-label', showPassword ? 'Hide password' : 'Show password');
+                toggleButton.textContent = showPassword ? 'Hide' : 'Show';
+            });
+        }
+
         if (!('serviceWorker' in navigator)) return;
         window.addEventListener('load', function () {
             navigator.serviceWorker.register('/sw.js').catch(function () {
