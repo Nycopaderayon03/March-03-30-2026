@@ -20,14 +20,27 @@ from authentication.models import Concern, Sanction, SanctionType, ServiceHourSu
 logger = logging.getLogger(__name__)
 
 DEPARTMENT_CHOICES = [
-    "College Of Agriculture",
-    "College Of Arts and Sciences Education",
-    "College Of Allied Health Sciences Education",
-    "College Of Business Education",
-    "College Of Criminal Justice Education",
-    "College Of Engineering Education",
-    "College Of Information Technology Education",
-    "College Of Teacher Education",
+    "Bachelor of Early Childhood Education",
+    "Bachelor of Elementary Education",
+    "Bachelor of Science in Secondary Education",
+    "Bachelor of Technical -Vocational Teacher Education",
+    "Bachelor of Science in Accountancy",
+    "Bachelor of Science Management Accounting",
+    "Bachelor of Science in Business Administration",
+    "Bachelor of Science in Entrepreneurship",
+    "Bachelor of Science in Tourism Management",
+    "Bachelor of Science in Civil Engineering",
+    "Bachelor of Science in Criminology",
+    "Bachelor of Science in Information Technology",
+    "Bachelor of Science in Entertainment and Multimedia Computing",
+    "Bachelor of Science in Nursing",
+    "Bachelor of Science in Medical Technology / Medical Laboratories Science",
+    "Bachelor of Science in Radiologic Technology",
+    "Bachelor of Science in Pharmacy",
+    "Bachelor of Science in Biology",
+    "Bachelor of Science in Psychology",
+    "Bachelor of Science in Social Work",
+    "Bachelor of Science in Agriculture",
 ]
 
 
