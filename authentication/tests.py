@@ -8,10 +8,9 @@ from authentication.views import build_monthly_pod_case_map
 class AuthenticationViewsTests(TestCase):
     def setUp(self):
         self.admin_user = User.objects.create_user(
-          password = os.getenv("password") # Compliant
+            username="admin_user",
             email="admin@example.com",
-            password = os.getenv("password") # Compliant
-        usernamePassword = 'user=%s&password=%s' % (username, password) # Compliant
+            password="AdminPass123!",
             role="admin",
             status="active",
         )
@@ -94,3 +93,45 @@ class AuthenticationViewsTests(TestCase):
         self.assertEqual(result[may_first.id]["pod_case_no"], "0001")
         self.assertEqual(result[may_second.id]["pod_case_no"], "0002")
         self.assertEqual(result[june_first.id]["pod_case_no"], "0001")
+
+
+class JwtAuthTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="jwt_user",
+            email="jwt@example.com",
+            password="JwtPass123!",
+            role="student",
+            status="active",
+            student_code="STU-1001",
+        )
+
+    def test_obtain_token_and_access_me_endpoint(self):
+        token_response = self.client.post(
+            reverse("token_obtain_pair"),
+            {"username": "jwt_user", "password": "JwtPass123!"},
+            content_type="application/json",
+        )
+        self.assertEqual(token_response.status_code, 200)
+        payload = token_response.json()
+        self.assertIn("access", payload)
+        self.assertIn("refresh", payload)
+        self.assertEqual(payload["user"]["username"], "jwt_user")
+
+        me_response = self.client.get(
+            reverse("api_me"),
+            HTTP_AUTHORIZATION=f"Bearer {payload['access']}",
+        )
+        self.assertEqual(me_response.status_code, 200)
+        self.assertEqual(me_response.json()["email"], "jwt@example.com")
+
+    def test_inactive_status_user_cannot_get_token(self):
+        self.user.status = "inactive"
+        self.user.save(update_fields=["status"])
+
+        token_response = self.client.post(
+            reverse("token_obtain_pair"),
+            {"username": "jwt_user", "password": "JwtPass123!"},
+            content_type="application/json",
+        )
+        self.assertEqual(token_response.status_code, 400)

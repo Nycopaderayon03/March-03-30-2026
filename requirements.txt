@@ -3,3 +3,5 @@ gunicorn
 psycopg2-binary
 python-dotenv
 resend>=0.5.0  # Modern transactional email API (better than Gmail SMTP)
+djangorestframework>=3.15.2
+djangorestframework-simplejwt>=5.3.1

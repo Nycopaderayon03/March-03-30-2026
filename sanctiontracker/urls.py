@@ -19,7 +19,9 @@ from django.urls import path
 from django.conf import settings
 from django.conf.urls.static import static
 from django.http import Http404
+from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
 from authentication import views as auth_views
+from authentication.jwt import AppTokenObtainPairView, me_view
 from authentication.admin import custom_admin_site
 
 
@@ -61,6 +63,10 @@ urlpatterns = [
     path('concerns/', auth_views.concerns_management_view, name='concerns_management'),
     path('create-student/', auth_views.create_student_view, name='create_student'),
     path('create-admin/', auth_views.create_admin_view, name='create_admin'),
+    path('api/token/', AppTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
+    path('api/me/', me_view, name='api_me'),
 ]
 
 if settings.ADMIN_URL != "admin/":
