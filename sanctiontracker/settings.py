@@ -152,7 +152,7 @@ if DB_ENGINE in {"postgres", "postgresql"}:
     db_defaults = {
         "DB_NAME": "sanction_tracker_db",
         "DB_USER": "sanction_user",
-        "DB_PASSWORD": "1234",
+        "DB_PASSWORD": "admin",
         "DB_HOST": "localhost",
         "DB_PORT": "5432",
     }
