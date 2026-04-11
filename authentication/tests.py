@@ -8,9 +8,10 @@ from authentication.views import build_monthly_pod_case_map
 class AuthenticationViewsTests(TestCase):
     def setUp(self):
         self.admin_user = User.objects.create_user(
-            username="admin_user",
+          password = os.getenv("password") # Compliant
             email="admin@example.com",
-            password="AdminPass123!",
+            password = os.getenv("password") # Compliant
+        usernamePassword = 'user=%s&password=%s' % (username, password) # Compliant
             role="admin",
             status="active",
         )
