@@ -43,6 +43,9 @@ DEPARTMENT_CHOICES = [
     "Bachelor of Science in Agriculture",
 ]
 
+SANCTION_FLOW_CHOICES = list(Sanction.FLOW_CHOICES)
+SANCTION_FLOW_LABELS = {value: label for value, label in SANCTION_FLOW_CHOICES}
+
 
 def manifest_view(_request):
     manifest = {
@@ -206,6 +209,48 @@ def format_hours(value):
     if rounded == rounded.to_integral():
         return int(rounded)
     return float(rounded)
+
+
+def normalize_sanction_flow(raw_value):
+    value = (raw_value or "").strip().lower().replace("-", "_").replace(" ", "_")
+    aliases = {
+        "1st_offense": "first_offense",
+        "2nd_offense": "second_offense",
+        "3rd_offense": "third_offense",
+    }
+    normalized = aliases.get(value, value)
+    valid_values = {choice[0] for choice in SANCTION_FLOW_CHOICES}
+    if normalized not in valid_values:
+        raise ValueError("Please select a valid sanction category.")
+    return normalized
+
+
+def sanction_flow_requires_portal(sanction_flow):
+    return sanction_flow == "community_service"
+
+
+def student_has_portal_access(student):
+    if not getattr(student, "is_student", False):
+        return False
+    return Sanction.objects.filter(
+        student=student,
+        sanction_flow="community_service",
+    ).exists()
+
+
+def redirect_if_student_portal_unavailable(request):
+    user = request.user
+    if not getattr(user, "is_student", False):
+        messages.error(request, "Please log in with a student account to view the student portal.")
+        return redirect("admin_dashboard" if has_admin_access(user) else "login")
+    if not student_has_portal_access(user):
+        messages.error(
+            request,
+            "Student portal access is available only for students assigned to community service.",
+        )
+        logout(request)
+        return redirect("login")
+    return None
 
 
 def normalize_gravity(raw_value):
@@ -404,6 +449,8 @@ def serialize_sanction_for_admin(sanction):
         "student_id": sanction.student.identifier,
         "student_course": sanction.student.course_year or "",
         "violation": sanction.violation,
+        "sanction_flow": sanction.sanction_flow,
+        "sanction_flow_label": sanction.sanction_flow_label,
         "required_hours": sanction.required_hours,
         "completed_hours": sanction.completed_hours,
         "status": sanction.status_label,
@@ -573,6 +620,7 @@ def sanction_management_view(request):
         "students": students,
         "current_date": timezone.localdate().isoformat(),
         "sanction_types": sanction_types,
+        "sanction_flow_choices": SANCTION_FLOW_CHOICES,
         "selected_student": selected_student,
         "history_search": history_search,
         "history_status": history_status,
@@ -591,14 +639,15 @@ def add_sanction_view(request):
         try:
             student_id = parse_non_negative_int(request.POST.get("student_id"), "Student")
             student = User.objects.get(id=student_id, role="student")
+            sanction_flow = normalize_sanction_flow(request.POST.get("sanction_flow"))
             sanction_type_description = (request.POST.get("violation") or "").strip()
             sanction_type = SanctionType.objects.filter(description__iexact=sanction_type_description).first()
-            required_hours = parse_non_negative_int(
-                request.POST.get("required_hours"),
-                "Required hours",
-            )
-            if required_hours <= 0:
-                raise ValueError("Required hours must be greater than zero.")
+            required_hours = parse_non_negative_int(request.POST.get("required_hours"), "Required hours", default=0)
+            if sanction_flow_requires_portal(sanction_flow):
+                if required_hours <= 0:
+                    raise ValueError("Required hours must be greater than zero for community service.")
+            else:
+                required_hours = 0
 
             date_issued = parse_iso_date(request.POST.get("date_issued"), "Date issued")
             due_date = parse_iso_date(request.POST.get("due_date"), "Due date")
@@ -613,18 +662,22 @@ def add_sanction_view(request):
                 student=student,
                 sanction_type=sanction_type,
                 violation_snapshot=violation_text,
+                sanction_flow=sanction_flow,
                 department=department,
                 required_hours=required_hours,
                 note=note,
                 date_issued=date_issued,
                 due_date=due_date,
             )
-            email_sent = notify_student_of_sanction(request, sanction)
-            status_note = (
-                "An email notification was sent to the student."
-                if email_sent
-                else "Email notification could not be delivered; please inform the student manually."
-            )
+            if sanction_flow_requires_portal(sanction_flow):
+                email_sent = notify_student_of_sanction(request, sanction)
+                status_note = (
+                    "An email notification was sent to the student."
+                    if email_sent
+                    else "Email notification could not be delivered; please inform the student manually."
+                )
+            else:
+                status_note = "Recorded as an offense-only case. Student portal login is not required."
             messages.success(
                 request,
                 (
@@ -727,13 +780,14 @@ def add_new_student_with_sanction_view(request):
             department = (request.POST.get("new_student_department") or "").strip()
             violation = (request.POST.get("new_violation") or "").strip()
             note = (request.POST.get("new_note") or "").strip()
+            sanction_flow = normalize_sanction_flow(request.POST.get("new_sanction_flow"))
             sanction_type = SanctionType.objects.filter(description__iexact=violation).first()
-            required_hours = parse_non_negative_int(
-                request.POST.get("new_required_hours"),
-                "Required hours",
-            )
-            if required_hours <= 0:
-                raise ValueError("Required hours must be greater than zero.")
+            required_hours = parse_non_negative_int(request.POST.get("new_required_hours"), "Required hours", default=0)
+            if sanction_flow_requires_portal(sanction_flow):
+                if required_hours <= 0:
+                    raise ValueError("Required hours must be greater than zero for community service.")
+            else:
+                required_hours = 0
 
             date_issued = parse_iso_date(request.POST.get("new_date_issued"), "Date issued")
             due_date = parse_iso_date(request.POST.get("new_due_date"), "Due date")
@@ -764,11 +818,15 @@ def add_new_student_with_sanction_view(request):
                 department=department,
                 course_year=course_year,
             )
+            if not sanction_flow_requires_portal(sanction_flow):
+                student.set_unusable_password()
+                student.save(update_fields=["password"])
 
             Sanction.objects.create(
                 student=student,
                 sanction_type=sanction_type,
                 violation_snapshot=violation or (sanction_type.description if sanction_type else "Unspecified"),
+                sanction_flow=sanction_flow,
                 department=department,
                 required_hours=required_hours,
                 note=note,
@@ -777,41 +835,47 @@ def add_new_student_with_sanction_view(request):
             )
 
             violation_label = violation or (sanction_type.description if sanction_type else "Unspecified")
-            subject = "Sanction Tracker — Access details"
-            from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@sanctiontracker.local")
-
-            sanction_summary = (
-                f"{violation_label} · Required hours: {required_hours} · "
-                f"Issued: {date_issued.isoformat()} · Due: {due_date.isoformat()}"
-            )
-            if note:
-                sanction_summary += f" · Description: {note}"
-            login_url = request.build_absolute_uri(reverse("login"))
-            body = (
-                f"Hello {student.display_name},\n\n"
-                f"Welcome! An administrator created your account in the Sanction Tracker system.\n"
-                f"Username: {username}\n"
-                f"Password: {temp_password}\n\n"
-                f"This is a reminder that you currently have a sanction assigned:\n"
-                f"{sanction_summary}\n\n"
-                f"Please log in at {login_url} to view your sanctions "
-                f"and submit proof of hours once completed.\n\n"
-                "If you did not expect this message, please contact your dean's office."
-            )
-            try:
-                send_mail(subject, body, from_email, [student.email])
-                email_note = "The credentials were emailed to the student."
-            except Exception as exc:
-                logger.exception("Failed to send sanction welcome email to %s", student.email)
-                email_note = "Email delivery failed; please notify the student manually."
-
-            messages.success(
-                request,
-                (
+            if sanction_flow_requires_portal(sanction_flow):
+                subject = "Sanction Tracker — Access details"
+                from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@sanctiontracker.local")
+                sanction_summary = (
+                    f"{violation_label} · Required hours: {required_hours} · "
+                    f"Issued: {date_issued.isoformat()} · Due: {due_date.isoformat()}"
+                )
+                if note:
+                    sanction_summary += f" · Description: {note}"
+                login_url = request.build_absolute_uri(reverse("login"))
+                body = (
+                    f"Hello {student.display_name},\n\n"
+                    f"Welcome! An administrator created your account in the Sanction Tracker system.\n"
+                    f"Username: {username}\n"
+                    f"Password: {temp_password}\n\n"
+                    f"This is a reminder that you currently have a sanction assigned:\n"
+                    f"{sanction_summary}\n\n"
+                    f"Please log in at {login_url} to view your sanctions "
+                    f"and submit proof of hours once completed.\n\n"
+                    "If you did not expect this message, please contact your dean's office."
+                )
+                try:
+                    send_mail(subject, body, from_email, [student.email])
+                    email_note = "The credentials were emailed to the student."
+                except Exception:
+                    logger.exception("Failed to send sanction welcome email to %s", student.email)
+                    email_note = "Email delivery failed; please notify the student manually."
+                message_summary = (
                     f"New student {student.display_name} created and sanctioned successfully. "
                     f"Username: {student.username} | Temporary password: {temp_password}. "
                     f"{email_note}"
-                ),
+                )
+            else:
+                message_summary = (
+                    f"New student {student.display_name} created and {SANCTION_FLOW_LABELS[sanction_flow]} recorded. "
+                    "Student portal login was not created because this category does not require community service."
+                )
+
+            messages.success(
+                request,
+                message_summary,
             )
         except ValueError as exc:
             messages.error(request, str(exc))
@@ -833,6 +897,13 @@ def login_view(request):
                 messages.success(request, "Welcome, admin!")
                 return redirect("admin_dashboard")
             if getattr(user, "is_student", False):
+                if not student_has_portal_access(user):
+                    messages.info(
+                        request,
+                        "Your record is offense-only at this time. Student portal login is enabled once community service is assigned.",
+                    )
+                    logout(request)
+                    return redirect("login")
                 request.session["student_welcome_once"] = True
                 return redirect("student_dashboard")
             messages.error(request, "Your account is not authorized to use this system.")
@@ -876,18 +947,26 @@ def student_management_view(request):
         # Search by the student's actual Student ID (student_code), not DB row id.
         students = students.filter(student_code__icontains=search_query).order_by("id")
 
+    case_filter = (request.GET.get("case_filter") or "all").strip().lower()
+    valid_case_filters = {"all", "first_offense", "second_offense", "third_offense", "community_service"}
+    if case_filter not in valid_case_filters:
+        case_filter = "all"
+    if case_filter != "all":
+        students = students.filter(sanctions__sanction_flow=case_filter).distinct().order_by("id")
+
     # Keep sanction statuses aligned with approved service-hour validations so
     # dashboard counters and row badges are always accurate.
     sanctions_for_students = sync_sanctions_for_queryset(Sanction.objects.filter(student__in=students))
     active_sanctions_by_student = {}
+    sanction_flows_by_student = {}
     for sanction in sanctions_for_students:
-        approved_total = Decimal(str(getattr(sanction, "approved_hours_total", 0) or 0))
-        required_total = Decimal(str(sanction.required_hours or 0))
-        is_open = required_total > 0 and approved_total < required_total
+        is_open = sanction.status == "active"
         if is_open:
             active_sanctions_by_student[sanction.student_id] = (
                 active_sanctions_by_student.get(sanction.student_id, 0) + 1
             )
+        student_flows = sanction_flows_by_student.setdefault(sanction.student_id, set())
+        student_flows.add(sanction.sanction_flow)
 
     total_students = students.count()
     active_students = students.filter(is_active=True).count()
@@ -899,6 +978,11 @@ def student_management_view(request):
         student.pod_case_date = pod_case_parts["date"]
         student.display_student_id = student.student_code or student.identifier
         student.active_sanction_count = active_sanctions_by_student.get(student.id, 0)
+        student.sanction_flow_labels = [
+            SANCTION_FLOW_LABELS[flow]
+            for flow in ("first_offense", "second_offense", "third_offense", "community_service")
+            if flow in sanction_flows_by_student.get(student.id, set())
+        ]
         if not student.is_active:
             student.directory_status_label = "Inactive"
             student.directory_status_class = "status-with-sanction"
@@ -912,6 +996,8 @@ def student_management_view(request):
     context = {
         "students": students,
         "search_query": search_query,
+        "case_filter": case_filter,
+        "case_filter_choices": [("all", "All Cases")] + SANCTION_FLOW_CHOICES,
         "student_count": total_students,
         "active_students_count": active_students,
         "students_with_sanctions_count": students_with_sanctions,
@@ -1186,9 +1272,9 @@ def concerns_management_view(request):
 
 @login_required
 def student_dashboard_view(request):
-    if not request.user.is_student:
-        messages.error(request, "Please log in with a student account to view the student portal.")
-        return redirect("admin_dashboard" if has_admin_access(request.user) else "login")
+    denied_response = redirect_if_student_portal_unavailable(request)
+    if denied_response:
+        return denied_response
 
     sync_sanctions_for_queryset(Sanction.objects.filter(student=request.user))
     sanctions_qs = Sanction.objects.filter(student=request.user)
@@ -1308,9 +1394,9 @@ def student_dashboard_view(request):
 
 @login_required
 def student_sanctions_view(request):
-    if not request.user.is_student:
-        messages.error(request, "Please log in with a student account to view the student portal.")
-        return redirect("admin_dashboard" if has_admin_access(request.user) else "login")
+    denied_response = redirect_if_student_portal_unavailable(request)
+    if denied_response:
+        return denied_response
 
     sync_sanctions_for_queryset(Sanction.objects.filter(student=request.user))
     sanctions = []
@@ -1394,9 +1480,9 @@ def student_sanctions_view(request):
 
 @login_required
 def student_service_hours_view(request):
-    if not request.user.is_student:
-        messages.error(request, "Please log in with a student account to view the student portal.")
-        return redirect("admin_dashboard" if has_admin_access(request.user) else "login")
+    denied_response = redirect_if_student_portal_unavailable(request)
+    if denied_response:
+        return denied_response
 
     if request.method == "POST":
         try:
@@ -1489,9 +1575,9 @@ def student_service_hours_view(request):
 
 @login_required
 def student_records_view(request):
-    if not request.user.is_student:
-        messages.error(request, "Please log in with a student account to view the student portal.")
-        return redirect("admin_dashboard" if has_admin_access(request.user) else "login")
+    denied_response = redirect_if_student_portal_unavailable(request)
+    if denied_response:
+        return denied_response
 
     sanctions = [
         {
@@ -1531,9 +1617,9 @@ def student_records_view(request):
 
 @login_required
 def student_help_center_view(request):
-    if not request.user.is_student:
-        messages.error(request, "Please log in with a student account to view the student portal.")
-        return redirect("admin_dashboard" if has_admin_access(request.user) else "login")
+    denied_response = redirect_if_student_portal_unavailable(request)
+    if denied_response:
+        return denied_response
 
     valid_topics = {value for value, _ in Concern.TOPIC_CHOICES}
     if request.method == "POST":
@@ -1579,9 +1665,9 @@ def student_help_center_view(request):
 
 @login_required
 def student_settings_view(request):
-    if not request.user.is_student:
-        messages.error(request, "Please log in with a student account to view the student portal.")
-        return redirect("admin_dashboard" if has_admin_access(request.user) else "login")
+    denied_response = redirect_if_student_portal_unavailable(request)
+    if denied_response:
+        return denied_response
 
     if request.method == "POST":
         current_password = request.POST.get("current_password") or ""

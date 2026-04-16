@@ -76,6 +76,14 @@
                             </div>
                             <div class="form-grid-two">
                                 <div>
+                                    <label class="form-label" for="existing-sanction-flow">Category</label>
+                                    <select id="existing-sanction-flow" name="sanction_flow" required>
+                                        {% for flow_value, flow_label in sanction_flow_choices %}
+                                        <option value="{{ flow_value }}">{{ flow_label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div>
                                     <label class="form-label" for="existing-violation">Violation</label>
                                     <select id="existing-violation" name="violation" class="violation-field" required>
                                         <option value="">Select a violation...</option>
@@ -153,6 +161,14 @@
                                 <input type="text" id="course_year" name="course_year" placeholder="e.g. BSSC-1" required>
                             </div>
                             <div class="form-grid-two">
+                                <div>
+                                    <label class="form-label" for="new-sanction-flow">Category</label>
+                                    <select id="new-sanction-flow" name="new_sanction_flow" required>
+                                        {% for flow_value, flow_label in sanction_flow_choices %}
+                                        <option value="{{ flow_value }}">{{ flow_label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
                                 <div>
                                     <label class="form-label" for="new-violation">Violation</label>
                                     <select id="new-violation" name="new_violation" class="violation-field" required>
@@ -315,6 +331,7 @@
                             <tr>
                                 <th>Student Name</th>
                                 <th>Violation</th>
+                                <th>Category</th>
                                 <th>Date Issued</th>
                                 <th>Due Date</th>
                                 <th>Required Hours</th>
@@ -332,6 +349,7 @@
                                     <small style="color: var(--gray);">Course: {{ sanction.student_course|default:"N/A" }}</small>
                                 </td>
                                 <td>{{ sanction.violation }}</td>
+                                <td>{{ sanction.sanction_flow_label }}</td>
                                 <td>{{ sanction.date_issued }}</td>
                                 <td>{{ sanction.due_date }}</td>
                                 <td>{{ sanction.required_hours }}</td>
@@ -342,7 +360,7 @@
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="7" style="text-align: center; padding: 40px; color: var(--gray);">
+                                <td colspan="8" style="text-align: center; padding: 40px; color: var(--gray);">
                                     No sanctions found. Add your first sanction above.
                                 </td>
                             </tr>
@@ -454,6 +472,24 @@
             autoFillDepartmentFromStudentSelection();
         }
 
+        function bindCommunityHoursBehavior(flowSelectId, hoursInputId) {
+            const flowSelect = document.getElementById(flowSelectId);
+            const hoursInput = document.getElementById(hoursInputId);
+            if (!flowSelect || !hoursInput) return;
+
+            const syncState = () => {
+                const needsHours = flowSelect.value === 'community_service';
+                hoursInput.required = needsHours;
+                hoursInput.disabled = !needsHours;
+                if (!needsHours) {
+                    hoursInput.value = '';
+                }
+            };
+
+            flowSelect.addEventListener('change', syncState);
+            syncState();
+        }
+
         function openEditModal(button) {
             const modal = document.getElementById('edit-sanction-modal');
             if (!modal) return;
@@ -545,6 +581,8 @@
         document.addEventListener('DOMContentLoaded', function() {
             initStudentSearch();
             initExistingStudentAutoDepartment();
+            bindCommunityHoursBehavior('existing-sanction-flow', 'existing-hours');
+            bindCommunityHoursBehavior('new-sanction-flow', 'new-hours');
             initEditModal();
             initHistorySearchAutoSubmit();
         });

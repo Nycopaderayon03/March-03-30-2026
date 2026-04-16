@@ -54,6 +54,11 @@
                                    placeholder="Search by Student ID..."
                                    value="{{ search_query }}">
                         </div>
+                        <select name="case_filter" id="case-filter-input" style="margin-left: 12px;">
+                            {% for filter_value, filter_label in case_filter_choices %}
+                            <option value="{{ filter_value }}" {% if case_filter == filter_value %}selected{% endif %}>{{ filter_label }}</option>
+                            {% endfor %}
+                        </select>
                     </form>
                 </div>
 
@@ -66,6 +71,7 @@
                                 <th>Student ID</th>
                                 <th>Name</th>
                                 <th>Email</th>
+                                <th>Case Category</th>
                                 <th>Status</th>
                                 <th>Actions</th>
                             </tr>
@@ -80,6 +86,13 @@
                                 <td><strong>{{ student.display_student_id }}</strong></td>
                                 <td class="name-cell">{{ student.get_full_name|default:student.username }}</td>
                                 <td class="email-cell">{{ student.email }}</td>
+                                <td>
+                                    {% if student.sanction_flow_labels %}
+                                        {{ student.sanction_flow_labels|join:", " }}
+                                    {% else %}
+                                        No sanctions yet
+                                    {% endif %}
+                                </td>
                                 <td class="status-cell">
                                     <span class="status-badge {{ student.directory_status_class }}">{{ student.directory_status_label }}</span>
                                 </td>
@@ -128,6 +141,12 @@
                     searchTimeout = setTimeout(() => {
                         searchForm.submit();
                     }, 500); // Submit after 500ms of no typing
+                });
+            }
+            const caseFilter = document.getElementById('case-filter-input');
+            if (caseFilter && searchForm) {
+                caseFilter.addEventListener('change', function() {
+                    searchForm.submit();
                 });
             }
         })();

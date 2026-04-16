@@ -93,6 +93,13 @@ class SanctionType(models.Model):
 
 
 class Sanction(models.Model):
+    FLOW_CHOICES = (
+        ("first_offense", "1st Offense"),
+        ("second_offense", "2nd Offense"),
+        ("third_offense", "3rd Offense"),
+        ("community_service", "Community Service"),
+    )
+
     STATUS_CHOICES = (
         ("active", "Active"),
         ("completed", "Completed"),
@@ -107,6 +114,7 @@ class Sanction(models.Model):
         related_name="sanctions",
     )
     violation_snapshot = models.CharField(max_length=255, blank=True)
+    sanction_flow = models.CharField(max_length=32, choices=FLOW_CHOICES, default="community_service")
     department = models.CharField(max_length=120, blank=True)
     required_hours = models.PositiveIntegerField(default=0)
     completed_hours = models.PositiveIntegerField(default=0)
@@ -156,6 +164,14 @@ class Sanction(models.Model):
     @property
     def status_class(self):
         return self.status
+
+    @property
+    def sanction_flow_label(self):
+        return self.get_sanction_flow_display()
+
+    @property
+    def sanction_flow_class(self):
+        return self.sanction_flow.replace("_", "-")
 
     @property
     def progress_percent(self):

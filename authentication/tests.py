@@ -1,7 +1,7 @@
 from django.test import TestCase
 from django.urls import reverse
 
-from authentication.models import User
+from authentication.models import Sanction, SanctionType, User
 from authentication.views import build_monthly_pod_case_map
 
 
@@ -34,7 +34,7 @@ class AuthenticationViewsTests(TestCase):
             (reverse("dashboard"), 302),
             (reverse("admin_dashboard"), 200),
             (reverse("student_management"), 200),
-            (reverse("student_detail", args=[self.student_user.id]), 302),
+            (reverse("student_detail", args=[self.student_user.id]), 200),
             (reverse("sanction_management"), 200),
             (reverse("servicehours_management"), 200),
             (reverse("reports_management"), 200),
@@ -49,16 +49,117 @@ class AuthenticationViewsTests(TestCase):
 
         # Make sure key redirects continue to point at the expected destinations.
         self.assertRedirects(self.client.get(reverse("dashboard")), reverse("admin_dashboard"))
-        self.assertRedirects(
-            self.client.get(reverse("student_detail", args=[self.student_user.id])),
-            reverse("student_management"),
-        )
         self.assertRedirects(self.client.get(reverse("create_student")), reverse("student_management"))
 
     def test_student_cannot_access_admin_pages(self):
         self.client.login(username="student_user", password="StudentPass123!")
         response = self.client.get(reverse("admin_dashboard"))
         self.assertEqual(response.status_code, 302)
+
+    def test_add_new_student_first_offense_creates_offense_only_record(self):
+        self.client.login(username="admin_user", password="AdminPass123!")
+        SanctionType.objects.create(description="Long Hair", gravity="Minor")
+
+        response = self.client.post(
+            reverse("add_new_student_with_sanction"),
+            {
+                "new_student_id": "STU-2001",
+                "full_name": "First Offense",
+                "new_student_email": "first.offense@example.com",
+                "course_year": "BSSC-1",
+                "new_student_department": "Bachelor of Science in Information Technology",
+                "new_sanction_flow": "first_offense",
+                "new_violation": "Long Hair",
+                "new_required_hours": "",
+                "new_note": "Hair length violation",
+                "new_date_issued": "2026-04-16",
+                "new_due_date": "2026-04-20",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+
+        student = User.objects.get(student_code="STU-2001")
+        sanction = Sanction.objects.get(student=student)
+        self.assertEqual(sanction.sanction_flow, "first_offense")
+        self.assertEqual(sanction.required_hours, 0)
+        self.assertFalse(student.has_usable_password())
+
+    def test_add_new_student_community_service_creates_portal_access(self):
+        self.client.login(username="admin_user", password="AdminPass123!")
+        SanctionType.objects.create(description="Littering", gravity="Minor")
+
+        response = self.client.post(
+            reverse("add_new_student_with_sanction"),
+            {
+                "new_student_id": "STU-2002",
+                "full_name": "Community Service",
+                "new_student_email": "community.service@example.com",
+                "course_year": "BSSC-1",
+                "new_student_department": "Bachelor of Science in Information Technology",
+                "new_sanction_flow": "community_service",
+                "new_violation": "Littering",
+                "new_required_hours": "5",
+                "new_note": "Community service required",
+                "new_date_issued": "2026-04-16",
+                "new_due_date": "2026-04-25",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+
+        student = User.objects.get(student_code="STU-2002")
+        sanction = Sanction.objects.get(student=student)
+        self.assertEqual(sanction.sanction_flow, "community_service")
+        self.assertEqual(sanction.required_hours, 5)
+        self.assertTrue(student.has_usable_password())
+        self.assertTrue(student.check_password("STU-2002"))
+
+    def test_student_management_case_filter(self):
+        self.client.login(username="admin_user", password="AdminPass123!")
+        SanctionType.objects.create(description="Uniform", gravity="Minor")
+
+        first_student = User.objects.create_user(
+            username="first_case",
+            email="first.case@example.com",
+            password="Pass1234!",
+            role="student",
+            status="active",
+            student_code="STU-3001",
+        )
+        service_student = User.objects.create_user(
+            username="service_case",
+            email="service.case@example.com",
+            password="Pass1234!",
+            role="student",
+            status="active",
+            student_code="STU-3002",
+        )
+
+        Sanction.objects.create(
+            student=first_student,
+            sanction_type=SanctionType.objects.get(description="Uniform"),
+            violation_snapshot="Uniform",
+            sanction_flow="first_offense",
+            required_hours=0,
+            date_issued="2026-04-16",
+            due_date="2026-04-20",
+        )
+        Sanction.objects.create(
+            student=service_student,
+            sanction_type=SanctionType.objects.get(description="Uniform"),
+            violation_snapshot="Uniform",
+            sanction_flow="community_service",
+            required_hours=4,
+            date_issued="2026-04-16",
+            due_date="2026-04-20",
+        )
+
+        first_response = self.client.get(reverse("student_management"), {"case_filter": "first_offense"})
+        self.assertContains(first_response, "STU-3001")
+        self.assertNotContains(first_response, "STU-3002")
+
+        service_response = self.client.get(reverse("student_management"), {"case_filter": "community_service"})
+        self.assertContains(service_response, "STU-3002")
+        self.assertNotContains(service_response, "STU-3001")
 
     def test_build_monthly_pod_case_map_resets_sequence_per_month(self):
         may_first = User.objects.create_user(
