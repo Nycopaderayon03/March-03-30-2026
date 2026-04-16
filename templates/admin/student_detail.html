@@ -59,6 +59,7 @@
                 <article class="sanction-item">
                     <div class="details">
                         <strong>{{ sanction.violation }}</strong>
+                        <span>Category: {{ sanction.sanction_flow_label }}</span>
                         <span>Required Hours: {{ sanction.required_hours }}</span>
                         <span>Completed: {{ sanction.completed_hours }}</span>
                     </div>
@@ -67,7 +68,15 @@
                         <span class="pill {% if sanction.status == 'completed' %}cleared{% else %}active{% endif %}">
                             {{ sanction.status_label }}
                         </span>
-                        <i class="material-icons" style="color: var(--text-muted); cursor: pointer;">archive</i>
+                        {% if sanction.can_resolve %}
+                        <form method="POST" action="{% url 'resolve_offense_sanction' sanction.id %}">
+                            {% csrf_token %}
+                            <button type="submit" class="resolve-offense-btn">
+                                <i class="material-icons" aria-hidden="true">check_circle</i>
+                                Mark Resolved
+                            </button>
+                        </form>
+                        {% endif %}
                     </div>
                 </article>
                 {% endfor %}

@@ -46,7 +46,7 @@
                     <p class="panel-description">Search, review, and assign sanctions for every learner in the system.</p>
                 </div>
                 <div class="filter-bar">
-                    <form method="GET" action="{% url 'student_management' %}" id="student-search-form">
+                    <form method="GET" action="{% url 'student_management' %}" id="student-search-form" class="student-filter-form">
                         <div class="search-box">
                             <i class="material-icons">search</i>
                             <input type="text"
@@ -54,7 +54,7 @@
                                    placeholder="Search by Student ID..."
                                    value="{{ search_query }}">
                         </div>
-                        <select name="case_filter" id="case-filter-input" style="margin-left: 12px;">
+                        <select name="case_filter" id="case-filter-input" class="case-filter-select">
                             {% for filter_value, filter_label in case_filter_choices %}
                             <option value="{{ filter_value }}" {% if case_filter == filter_value %}selected{% endif %}>{{ filter_label }}</option>
                             {% endfor %}

@@ -161,6 +161,44 @@ class AuthenticationViewsTests(TestCase):
         self.assertContains(service_response, "STU-3002")
         self.assertNotContains(service_response, "STU-3001")
 
+    def test_admin_can_resolve_offense_sanction(self):
+        self.client.login(username="admin_user", password="AdminPass123!")
+        sanction_type = SanctionType.objects.create(description="Hair", gravity="Minor")
+        sanction = Sanction.objects.create(
+            student=self.student_user,
+            sanction_type=sanction_type,
+            violation_snapshot="Hair",
+            sanction_flow="first_offense",
+            required_hours=0,
+            status="active",
+            date_issued="2026-04-16",
+            due_date="2026-04-20",
+        )
+
+        response = self.client.post(reverse("resolve_offense_sanction", args=[sanction.id]))
+        self.assertEqual(response.status_code, 302)
+        sanction.refresh_from_db()
+        self.assertEqual(sanction.status, "completed")
+
+    def test_admin_cannot_resolve_community_service_sanction(self):
+        self.client.login(username="admin_user", password="AdminPass123!")
+        sanction_type = SanctionType.objects.create(description="Service", gravity="Minor")
+        sanction = Sanction.objects.create(
+            student=self.student_user,
+            sanction_type=sanction_type,
+            violation_snapshot="Service",
+            sanction_flow="community_service",
+            required_hours=5,
+            status="active",
+            date_issued="2026-04-16",
+            due_date="2026-04-25",
+        )
+
+        response = self.client.post(reverse("resolve_offense_sanction", args=[sanction.id]))
+        self.assertEqual(response.status_code, 302)
+        sanction.refresh_from_db()
+        self.assertEqual(sanction.status, "active")
+
     def test_build_monthly_pod_case_map_resets_sequence_per_month(self):
         may_first = User.objects.create_user(
             username="may_1",

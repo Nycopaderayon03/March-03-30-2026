@@ -45,6 +45,7 @@ DEPARTMENT_CHOICES = [
 
 SANCTION_FLOW_CHOICES = list(Sanction.FLOW_CHOICES)
 SANCTION_FLOW_LABELS = {value: label for value, label in SANCTION_FLOW_CHOICES}
+OFFENSE_SANCTION_FLOWS = {"first_offense", "second_offense", "third_offense"}
 
 
 def manifest_view(_request):
@@ -84,7 +85,7 @@ def manifest_view(_request):
 
 def service_worker_view(_request):
     script = """
-const CACHE_NAME = 'st-pwa-v2';
+const CACHE_NAME = 'st-pwa-v4';
 const STATIC_ASSETS = [
   '/',
   '/login/',
@@ -136,19 +137,17 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Network-first for static assets so style updates appear on normal refresh.
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) {
-        return cached;
-      }
-      return fetch(event.request).then((response) => {
+    fetch(event.request)
+      .then((response) => {
         if (response && response.status === 200) {
           const copy = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
         }
         return response;
-      });
-    })
+      })
+      .catch(() => caches.match(event.request))
   );
 });
 """.strip()
@@ -227,6 +226,10 @@ def normalize_sanction_flow(raw_value):
 
 def sanction_flow_requires_portal(sanction_flow):
     return sanction_flow == "community_service"
+
+
+def is_offense_sanction_flow(sanction_flow):
+    return sanction_flow in OFFENSE_SANCTION_FLOWS
 
 
 def student_has_portal_access(student):
@@ -959,12 +962,15 @@ def student_management_view(request):
     sanctions_for_students = sync_sanctions_for_queryset(Sanction.objects.filter(student__in=students))
     active_sanctions_by_student = {}
     sanction_flows_by_student = {}
+    resolved_offense_by_student = {}
     for sanction in sanctions_for_students:
         is_open = sanction.status == "active"
         if is_open:
             active_sanctions_by_student[sanction.student_id] = (
                 active_sanctions_by_student.get(sanction.student_id, 0) + 1
             )
+        if sanction.status == "completed" and is_offense_sanction_flow(sanction.sanction_flow):
+            resolved_offense_by_student[sanction.student_id] = True
         student_flows = sanction_flows_by_student.setdefault(sanction.student_id, set())
         student_flows.add(sanction.sanction_flow)
 
@@ -989,6 +995,9 @@ def student_management_view(request):
         elif getattr(student, "active_sanction_count", 0) > 0:
             student.directory_status_label = "With Sanction"
             student.directory_status_class = "status-with-sanction"
+        elif resolved_offense_by_student.get(student.id, False):
+            student.directory_status_label = "Resolved"
+            student.directory_status_class = "status-cleared"
         else:
             student.directory_status_label = "Cleared"
             student.directory_status_class = "status-cleared"
@@ -1028,18 +1037,23 @@ def student_detail_view(request, student_id):
     overdue_count = 0
     sanctions = []
     for sanction in sanctions_qs:
-        approved_hours_qs = ServiceHourSubmission.objects.filter(
-            student=student, sanction=sanction, status="approved"
-        )
-        approved_hours = approved_hours_qs.aggregate(total=Sum("hours"))["total"] or Decimal("0")
-        completed_hours = format_hours(approved_hours)
-        progress_percentage = 0
-        if sanction.required_hours:
-            progress_percentage = min(
-                int((approved_hours / Decimal(str(sanction.required_hours))) * 100), 100
+        if is_offense_sanction_flow(sanction.sanction_flow):
+            completed_hours = format_hours(sanction.completed_hours)
+            status_value = sanction.status
+            status_label = "Resolved" if sanction.status == "completed" else "Active"
+        else:
+            approved_hours_qs = ServiceHourSubmission.objects.filter(
+                student=student, sanction=sanction, status="approved"
             )
-        status_value = "completed" if progress_percentage >= 100 else "active"
-        status_label = "Completed" if status_value == "completed" else "Active"
+            approved_hours = approved_hours_qs.aggregate(total=Sum("hours"))["total"] or Decimal("0")
+            completed_hours = format_hours(approved_hours)
+            progress_percentage = 0
+            if sanction.required_hours:
+                progress_percentage = min(
+                    int((approved_hours / Decimal(str(sanction.required_hours))) * 100), 100
+                )
+            status_value = "completed" if progress_percentage >= 100 else "active"
+            status_label = "Completed" if status_value == "completed" else "Active"
         overdue = status_value == "active" and sanction.due_date < today
         if overdue:
             overdue_count += 1
@@ -1047,6 +1061,8 @@ def student_detail_view(request, student_id):
             {
                 "id": sanction.id,
                 "violation": sanction.violation,
+                "sanction_flow": sanction.sanction_flow,
+                "sanction_flow_label": SANCTION_FLOW_LABELS.get(sanction.sanction_flow, "Unspecified"),
                 "required_hours": sanction.required_hours,
                 "completed_hours": completed_hours,
                 "status_label": status_label,
@@ -1054,20 +1070,61 @@ def student_detail_view(request, student_id):
                 "date_issued": sanction.date_issued,
                 "due_date": sanction.due_date,
                 "overdue": overdue,
+                "can_resolve": is_offense_sanction_flow(sanction.sanction_flow) and status_value == "active",
             }
         )
 
     has_active = sanctions_qs.filter(status="active").exists()
+    has_resolved_offense = sanctions_qs.filter(
+        status="completed",
+        sanction_flow__in=OFFENSE_SANCTION_FLOWS,
+    ).exists()
     has_sanctions = sanctions_qs.exists()
     context = {
         "student": student,
         "sanctions": sanctions,
         "overdue_count": overdue_count,
-        "sanction_status": "With Sanction" if has_active else "Cleared",
+        "sanction_status": (
+            "With Sanction"
+            if has_active
+            else "Resolved"
+            if has_resolved_offense
+            else "Cleared"
+        ),
         "has_sanctions": has_sanctions,
         "has_active": has_active,
     }
     return render(request, "admin/student_detail.html", context)
+
+
+@login_required
+def resolve_offense_sanction_view(request, sanction_id):
+    if not has_admin_access(request.user):
+        messages.error(request, "You do not have permission to perform this action.")
+        return redirect("dashboard")
+
+    if request.method != "POST":
+        messages.error(request, "Invalid method.")
+        return redirect("student_management")
+
+    try:
+        sanction = Sanction.objects.select_related("student").get(id=sanction_id)
+    except Sanction.DoesNotExist:
+        messages.error(request, "Sanction not found.")
+        return redirect("student_management")
+
+    if not is_offense_sanction_flow(sanction.sanction_flow):
+        messages.error(request, "Only offense sanctions can be resolved manually.")
+        return redirect("student_detail", student_id=sanction.student_id)
+
+    if sanction.status == "completed":
+        messages.info(request, "This offense is already resolved.")
+        return redirect("student_detail", student_id=sanction.student_id)
+
+    sanction.status = "completed"
+    sanction.save(update_fields=["status", "updated_at"])
+    messages.success(request, f'Offense "{sanction.violation}" marked as resolved.')
+    return redirect("student_detail", student_id=sanction.student_id)
 
 
 def logout_view(request):

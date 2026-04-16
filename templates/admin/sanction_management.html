@@ -419,23 +419,38 @@
             const studentSelect = document.getElementById('existing-student');
             if (!searchInput || !studentSelect) return;
 
+            const allStudents = Array.from(studentSelect.options)
+                .filter(option => option.value)
+                .map(option => ({
+                    value: option.value,
+                    text: option.textContent,
+                    department: option.dataset.department || '',
+                }));
+
             const filterOptions = () => {
                 const query = searchInput.value.trim().toLowerCase();
-                Array.from(studentSelect.options).forEach(option => {
-                    if (!option.value) {
-                        option.hidden = false;
-                        option.disabled = false;
-                        return;
+                const currentValue = studentSelect.value;
+                const matchingStudents = allStudents.filter(student =>
+                    !query || student.text.toLowerCase().includes(query)
+                );
+
+                studentSelect.innerHTML = '';
+                const defaultOption = document.createElement('option');
+                defaultOption.value = '';
+                defaultOption.textContent = matchingStudents.length ? 'Select a student...' : 'No matching students';
+                studentSelect.appendChild(defaultOption);
+
+                matchingStudents.forEach(student => {
+                    const option = document.createElement('option');
+                    option.value = student.value;
+                    option.dataset.department = student.department;
+                    option.textContent = student.text;
+                    if (student.value === currentValue) {
+                        option.selected = true;
                     }
-                    const text = option.textContent.toLowerCase();
-                    const matches = !query || text.includes(query);
-                    option.hidden = !matches;
-                    option.disabled = !matches;
+                    studentSelect.appendChild(option);
                 });
 
-                if (studentSelect.selectedOptions.length && studentSelect.selectedOptions[0].hidden) {
-                    studentSelect.value = '';
-                }
                 autoFillDepartmentFromStudentSelection();
             };
 

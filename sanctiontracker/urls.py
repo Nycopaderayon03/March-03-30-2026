@@ -54,6 +54,7 @@ urlpatterns = [
     path('sanctions/types/<int:sanction_type_id>/edit/', auth_views.edit_sanction_type_view, name='edit_sanction_type'),
     path('sanctions/types/<int:sanction_type_id>/delete/', auth_views.delete_sanction_type_view, name='delete_sanction_type'),
     path('sanctions/<int:sanction_id>/edit/', auth_views.edit_sanction_view, name='edit_sanction'),
+    path('sanctions/<int:sanction_id>/resolve-offense/', auth_views.resolve_offense_sanction_view, name='resolve_offense_sanction'),
     path('sanctions/<int:sanction_id>/delete/', auth_views.delete_sanction_view, name='delete_sanction'),
     path('servicehours/', auth_views.service_hours_management_view, name='servicehours_management'),
     path('servicehours/submission/<int:submission_id>/status/', auth_views.update_service_submission_status,
