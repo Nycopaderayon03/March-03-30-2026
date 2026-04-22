@@ -242,8 +242,10 @@ SIMPLE_JWT = {
 
 if not DEBUG:
     SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", True)
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
+    # Default to secure cookies in production, but allow local HTTP docker runs to
+    # override via env (otherwise auth/CSRF can break on http://localhost).
+    SESSION_COOKIE_SECURE = env_bool("SESSION_COOKIE_SECURE", SECURE_SSL_REDIRECT)
+    CSRF_COOKIE_SECURE = env_bool("CSRF_COOKIE_SECURE", SECURE_SSL_REDIRECT)
     SECURE_HSTS_SECONDS = int(os.environ.get("SECURE_HSTS_SECONDS", "31536000"))
     SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool("SECURE_HSTS_INCLUDE_SUBDOMAINS", True)
     SECURE_HSTS_PRELOAD = env_bool("SECURE_HSTS_PRELOAD", True)
@@ -297,7 +299,22 @@ else:
     
     EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
     EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD")
-    DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER)
+    smtp_default_from_email = os.environ.get("DEFAULT_FROM_EMAIL", "").strip()
+    placeholder_from_emails = {
+        "noreply@yourcompany.com",
+        "no-reply@yourcompany.com",
+        "noreply@example.com",
+        "no-reply@example.com",
+    }
+    if not smtp_default_from_email or smtp_default_from_email.lower() in placeholder_from_emails:
+        DEFAULT_FROM_EMAIL = EMAIL_HOST_USER or smtp_default_from_email
+        if smtp_default_from_email and DEFAULT_FROM_EMAIL != smtp_default_from_email:
+            logger.warning(
+                "Ignoring placeholder DEFAULT_FROM_EMAIL=%s for SMTP; using EMAIL_HOST_USER instead.",
+                smtp_default_from_email,
+            )
+    else:
+        DEFAULT_FROM_EMAIL = smtp_default_from_email
     logger.warning("Using legacy Gmail SMTP. Consider migrating to Resend for better reliability.")
 
 # =========================

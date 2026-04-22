@@ -1,0 +1,13 @@
+services:
+  web:
+    # Dev override: auto-reload on code/template changes.
+    command: python Services/manage.py runserver 0.0.0.0:8000
+    environment:
+      DEBUG: "true"
+      SECURE_SSL_REDIRECT: "false"
+      SESSION_COOKIE_SECURE: "false"
+      CSRF_COOKIE_SECURE: "false"
+      SECURE_HSTS_SECONDS: "0"
+      SECURE_HSTS_INCLUDE_SUBDOMAINS: "false"
+      SECURE_HSTS_PRELOAD: "false"
+

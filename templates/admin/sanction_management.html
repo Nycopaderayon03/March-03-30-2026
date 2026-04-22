@@ -144,7 +144,7 @@
                             <div class="form-grid-two">
                                 <div>
                                     <label class="form-label" for="new-student-email">School Email</label>
-                                    <input type="email" id="new-student-email" name="new_student_email" placeholder="e.g. alex.ray@school.edu" required>
+                                    <input type="email" id="new-student-email" name="new_student_email" placeholder="e.g. alex.ray@school.edu">
                                 </div>
                                 <div>
                                     <label class="form-label" for="new-student-department">Department</label>
@@ -505,6 +505,23 @@
             syncState();
         }
 
+        function bindCommunityEmailBehavior(flowSelectId, emailInputId) {
+            const flowSelect = document.getElementById(flowSelectId);
+            const emailInput = document.getElementById(emailInputId);
+            if (!flowSelect || !emailInput) return;
+
+            const syncState = () => {
+                const needsEmail = flowSelect.value === 'community_service';
+                emailInput.required = needsEmail;
+                emailInput.placeholder = needsEmail
+                    ? 'Required for Community Service'
+                    : 'Optional for 1st/2nd/3rd Offense';
+            };
+
+            flowSelect.addEventListener('change', syncState);
+            syncState();
+        }
+
         function openEditModal(button) {
             const modal = document.getElementById('edit-sanction-modal');
             if (!modal) return;
@@ -598,6 +615,7 @@
             initExistingStudentAutoDepartment();
             bindCommunityHoursBehavior('existing-sanction-flow', 'existing-hours');
             bindCommunityHoursBehavior('new-sanction-flow', 'new-hours');
+            bindCommunityEmailBehavior('new-sanction-flow', 'new-student-email');
             initEditModal();
             initHistorySearchAutoSubmit();
         });

@@ -295,6 +295,18 @@ def build_unique_username(base_value):
     return candidate
 
 
+def build_unique_placeholder_email(student_code):
+    base_local = "".join(ch for ch in (student_code or "").lower() if ch.isalnum())
+    base_local = base_local or "student"
+    domain = "offense.local"
+    candidate = f"{base_local}@{domain}"
+    counter = 1
+    while User.objects.filter(email__iexact=candidate).exists():
+        candidate = f"{base_local}{counter}@{domain}"
+        counter += 1
+    return candidate
+
+
 def build_temp_password(seed):
     token = "".join(ch for ch in (seed or "") if ch.isalnum())
     token = (token[:6] or "Student").capitalize()
@@ -796,14 +808,17 @@ def add_new_student_with_sanction_view(request):
             due_date = parse_iso_date(request.POST.get("new_due_date"), "Due date")
             if not full_name:
                 raise ValueError("Student full name is required.")
-            if not email:
-                raise ValueError("Student email is required.")
+            if sanction_flow_requires_portal(sanction_flow) and not email:
+                raise ValueError("Student email is required for community service.")
             if not student_code:
                 raise ValueError("Student ID is required.")
-            if User.objects.filter(email__iexact=email).exists():
+            if email and User.objects.filter(email__iexact=email).exists():
                 raise ValueError("Email is already in use.")
             if User.objects.filter(student_code__iexact=student_code).exists() or User.objects.filter(username__iexact=student_code).exists():
                 raise ValueError("Student ID is already in use.")
+
+            if not email:
+                email = build_unique_placeholder_email(student_code)
 
             first_name, last_name = split_full_name(full_name)
             username = student_code
